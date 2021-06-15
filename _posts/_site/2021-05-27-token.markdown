@@ -1,0 +1,48 @@
+(0) Text -> (1) word indices Vocabulary
+     |                          ↓
+     |--- > (2) word indices Sequence
+
+## Text
+<pre><code>
+text = ['The black cat jumps on the black couch']
+</code></pre>
+
+the output:
+<code><pre>
+['The black cat jumps on the black couch']
+</code></pre>
+
+## Vocabulary: word indices by frequency
+<pre><code>
+symbolsToFilter = '!"#$%&()*+,-–—./…:;<=>?@[\\]^_`{|}~«»\t\n\xa0\ufeff'*
+
+tokenizer = Tokenizer( # tensorflow.keras.preprocessing.text
+    num_words = maxWordsCount, # max words to be processed by the model
+    filters = symbolsToFilter,
+    lower = True, # enforce the lower register
+    split = ' ', # split by space
+    oov_token = 'unknown', # replaces all out-of-vocabulary words
+    char_level = False # if True, every charcter is used as token
+)
+
+tokenizer.fit_on_texts(text)
+items = list(tokenizer.word_index.items())
+print(items)
+</code></pre>
+
+the output:
+<pre><code>
+[('unknown', 1), ('the', 2), ('black', 3), ('cat', 4), ('jumps', 5), ('on', 6), ('couch', 7)]
+</code></pre>
+
+## Sequence of word indices
+<pre><code>
+seq = tokenizer.texts_to_sequences(text)
+print(seq)
+</code></pre>
+
+the output:
+<pre><code>
+[[2, 3, 4, 5, 6, 2, 3, 7]]
+</code></pre>
+

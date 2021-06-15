@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Google Maps API: простой запрос по адресу | readMe, my specs</title>
+<meta name="generator" content="Jekyll v4.2.0" />
+<meta property="og:title" content="Google Maps API: простой запрос по адресу" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Задача собрать информацию (в этом примере - координаты) по нескольким физическим адресам через API Google Maps. Возьмем адреса нескольких ведущих москвоских ВУЗов, соберем координаты, визуализируем на карте." />
+<meta property="og:description" content="Задача собрать информацию (в этом примере - координаты) по нескольким физическим адресам через API Google Maps. Возьмем адреса нескольких ведущих москвоских ВУЗов, соберем координаты, визуализируем на карте." />
+<link rel="canonical" href="/jekyll/update/2021/05/23/google-maps-api-%D0%BF%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B9-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81-%D0%BF%D0%BE-%D0%B0%D0%B4%D1%80%D0%B5%D1%81%D1%83.html" />
+<meta property="og:url" content="/jekyll/update/2021/05/23/google-maps-api-%D0%BF%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B9-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81-%D0%BF%D0%BE-%D0%B0%D0%B4%D1%80%D0%B5%D1%81%D1%83.html" />
+<meta property="og:site_name" content="readMe, my specs" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-05-23T16:05:36+03:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Google Maps API: простой запрос по адресу" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"/jekyll/update/2021/05/23/google-maps-api-%D0%BF%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B9-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81-%D0%BF%D0%BE-%D0%B0%D0%B4%D1%80%D0%B5%D1%81%D1%83.html"},"headline":"Google Maps API: простой запрос по адресу","dateModified":"2021-05-23T16:05:36+03:00","datePublished":"2021-05-23T16:05:36+03:00","url":"/jekyll/update/2021/05/23/google-maps-api-%D0%BF%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B9-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81-%D0%BF%D0%BE-%D0%B0%D0%B4%D1%80%D0%B5%D1%81%D1%83.html","description":"Задача собрать информацию (в этом примере - координаты) по нескольким физическим адресам через API Google Maps. Возьмем адреса нескольких ведущих москвоских ВУЗов, соберем координаты, визуализируем на карте.","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="/feed.xml" title="readMe, my specs" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">readMe, my specs</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/cv/">CV</a><a class="page-link" href="/courses/">Courses</a><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Google Maps API: простой запрос по адресу</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-05-23T16:05:36+03:00" itemprop="datePublished">May 23, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>Задача собрать информацию (в этом примере - координаты) по нескольким физическим адресам через API <em>Google Maps</em>. Возьмем адреса нескольких ведущих москвоских ВУЗов, соберем координаты, визуализируем на карте.</p>
+
+<pre><code>
+adrDict = {'MSU': '119991, Российская Федерация, Москва, Ленинские горы, д. 1',
+           'MIPT': '41701, Московская область, г. Долгопрудный, Институтский переулок, д.9.',
+           'HSE': 'Россия, 101000, г. Москва, ул. Мясницкая, д. 20'}
+</code></pre>
+
+<p>Выполнить это можно в несколько шагов.</p>
+
+<h5 id="шаг-1-заберем-свой-api-ключ-google-maps"><strong>ШАГ 1</strong>: заберем свой API ключ Google Maps.</h5>
+
+<p>Сделать это можно на сайте <strong>Google Cloud Platform</strong>. Для этого:</p>
+
+<ol>
+  <li>
+    <p>Идем на сайт <a href="https://console.cloud.google.com/project/_/apiui/credential">Google Cloud Credentials</a></p>
+  </li>
+  <li>
+    <p>Переходим <em>+ CREATE CREDENTIALS</em> -&gt; <em>API key</em></p>
+  </li>
+  <li>
+    <p>Далее необходимо авторизовать API для сервиса Geocoding. для этого переходим на <a href="https://console.cloud.google.com/google/maps-apis/overview">Google Maps Platform</a> -&gt; <em>APIs</em> , ищем Geocoding and кликаем <em>Google Maps Geocoding API</em> -&gt; <em>Enable API</em></p>
+  </li>
+</ol>
+
+<p>После этого можно сохранить ключ у себяи загрузить его в переменную.</p>
+
+<pre><code>
+with open('d/My Drive/googleMap/apikey.txt') as f: # don't forget to update your key location
+    apiKey = f.readline()
+    f.close
+</code></pre>
+
+<h2 id="шаг-2-отправить-запрос-и-получить-ответ-через--request"><strong>ШАГ 2</strong>: отправить запрос и получить ответ через  <strong>REQUEST</strong></h2>
+
+<p>Одна из самых распростаненных библиотек для отправки / получения запросов <a href="https://docs.python-requests.org/en/master/">request</a></p>
+
+<pre><code>
+import requests # простая HTTP библиотека для запросов
+from collections import defaultdict # удобная фукнция для хранения массивов даже без заранее прописанного ключа
+</code></pre>
+
+<p>Теперь пропишем функцию для того, чтобы собрать все входящие в одном удобном датафрейме.</p>
+
+<pre><code>
+def getInfo(adrDict):
+    '''
+    забираем и сохраняем в json координаты с google maps
+    '''
+    for key in adrDict.keys(): # для каждого указанного места
+        query = adrDict[key] # берем физический адрес
+        # и вставляем в запрос
+        url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + query + '&amp;lang=ru&amp;key=' + apiKey
+        data[key] = requests.get(url).json() # сохраняем результат как json
+
+    return data
+
+data = defaultdict(dict) # обработанные координаты кидаем в один словарь
+getInfo(adrDict)
+</code></pre>
+
+<p>По результату запроса получим следующий выход (в формате json</p>
+<pre><code>
+defaultdict(dict,
+            {'HSE': {'results': [{'address_components': [{'long_name': '20',
+                  'short_name': '20',
+                  'types': ['street_number']},
+                 {'long_name': 'Myasnitskaya Ulitsa',
+                  'short_name': 'Myasnitskaya Ulitsa',
+                  'types': ['route']},
+                 {'long_name': 'Tsentralnyy administrativnyy okrug',
+                  'short_name': 'Tsentralnyy administrativnyy okrug',
+                  'types': ['political',
+                   'sublocality',
+                   'sublocality_level_1']},
+                 {'long_name': 'Moskva',
+                  'short_name': 'Moskva',
+                  'types': ['locality', 'political']},
+                 {'long_name': 'Basmannyy',
+                  'short_name': 'Basmannyy',
+                  'types': ['administrative_area_level_3', 'political']},
+                 {'long_name': 'Moskva',
+                  'short_name': 'Moskva',
+                  'types': ['administrative_area_level_2', 'political']},
+                 {'long_name': 'Russia',
+                  'short_name': 'RU',
+                  'types': ['country', 'political']},
+                 {'long_name': '101000',
+                  'short_name': '101000',
+                  'types': ['postal_code']}],
+                'formatted_address': 'Myasnitskaya Ulitsa, 20, Moskva, Russia, 101000',
+                'geometry': {'location': {'lat': 55.7615816, 'lng': 37.633323},
+                 'location_type': 'ROOFTOP',
+                 'viewport': {'northeast': {'lat': 55.7629305802915,
+                   'lng': 37.63467198029149},
+                  'southwest': {'lat': 55.7602326197085,
+                   'lng': 37.6319740197085}}},
+                'place_id': 'ChIJhzwS4l1KtUYRapWlISMo4Ek',
+                'plus_code': {'compound_code': 'QJ6M+J8 Basmanny District, Moscow, Russia',
+                 'global_code': '9G7VQJ6M+J8'},
+                'types': ['street_address']}],
+              'status': 'OK'},
+			--- ... ---
+</code></pre>
+
+<p>Теперь визуализируем это на карте</p>
+
+<h5 id="шаг-3-визиализируем-с-помочщью-folium"><strong>ШАГ 3</strong>: визиализируем с помочщью <em>Folium</em></h5>
+
+<p>Для удобства долготу и ширину географических объектов размещаю в датафрейме</p>
+
+<pre><code>
+import pandas as pd
+
+adrDf = pd.DataFrame(
+    columns = ['Address', 'Latitude', 'Longtitude'],
+    index = list(data.keys())
+)
+
+# for every address in our dictionary we collect he latitude and longtitute data
+for key in data.keys():
+    adrDf.loc[key]['Address'] = adrDict[key] 
+    adrDf.loc[key]['Latitude'] = data[key]['results'][0]['geometry']['location']['lat']
+    adrDf.loc[key]['Longtitude'] = data[key]['results'][0]['geometry']['location']['lng']
+</code></pre>
+
+<p><a href="http://python-visualization.github.io/folium/">Folium</a> очень удобная и простая для начинающих библиотека, с помощью которой можно визуализировать адреса на <em>интерактивной карте</em>. Нет нужды подгружать дополнительные исходники, просто вызываем функцию <em>folium.Map</em>. Передаем координаты, ставим исходный масштаб приближения и готово:</p>
+
+<pre><code>
+import folium
+from folium.plugins import MarkerCluster # функция анимированной кластеризации
+
+# инициализируем карту
+m = folium.Map(
+    # берем среднее по кооридантам для центровки
+    location = adrDf[['Latitude', 'Longtitude']].mean().to_list(), #
+    zoom_start=10 # ставим исходное приближение
+)
+
+markerCluster = MarkerCluster().add_to(m) # инициализируем кластеризацию
+
+# собираем данные из датафрейма
+for idx in adrDf.index:
+    location = (adrDf.loc[idx]['Latitude'], adrDf.loc[idx]['Longtitude']) # наши координаты
+    folium.Marker(
+        location = location,
+        popup = adrDf.loc[idx]['Address'], # имя точки
+        tooltip = adrDf.loc[idx]['Address'], # текст поверх точек
+    ).add_to(markerCluster)
+
+m # рисуем карту
+</code></pre>
+
+<p>Сохраняем в HTML:</p>
+
+<pre><code>
+m.save('2021-05-23-google-maps-api-simple-address-querry.html')
+</code></pre>
+
+<h2 id="в-итоге-получаем-карту-с-адресами">в итоге получаем карту с адресами:</h2>
+
+<p><img src="/assets/img/2021-05-23-google-maps-api-simple-address-querry.png" /></p>
+
+  </div><a class="u-url" href="/jekyll/update/2021/05/23/google-maps-api-%D0%BF%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B9-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81-%D0%BF%D0%BE-%D0%B0%D0%B4%D1%80%D0%B5%D1%81%D1%83.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">readMe, my specs</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">readMe, my specs</li><li><a class="u-email" href="mailto:nogotheorem@gmail.com">nogotheorem@gmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/quant-ml"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">quant-ml</span></a></li><li><a href="https://www.twitter.com/quantumCircuit"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">quantumCircuit</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>Description of my skills, experience and projects. Thank you for your interest!</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>

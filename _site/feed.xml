@@ -1,0 +1,1916 @@
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="4.2.0">Jekyll</generator><link href="/feed.xml" rel="self" type="application/atom+xml" /><link href="/" rel="alternate" type="text/html" /><updated>2021-06-15T00:27:16+03:00</updated><id>/feed.xml</id><title type="html">readMe, my specs</title><subtitle>Description of my skills, experience and projects. Thank you for your interest!</subtitle><entry><title type="html">Stock Price Prediction with LSTM based on the hist data only</title><link href="/jekyll/update/2021/05/30/stock-price-prediction-only-history.html" rel="alternate" type="text/html" title="Stock Price Prediction with LSTM based on the hist data only" /><published>2021-05-30T00:00:00+03:00</published><updated>2021-05-30T00:00:00+03:00</updated><id>/jekyll/update/2021/05/30/stock-price-prediction-only-history</id><content type="html" xml:base="/jekyll/update/2021/05/30/stock-price-prediction-only-history.html">&lt;p&gt;&lt;strong&gt;The problem set:&lt;/strong&gt; In this example I was trying to test if the stock price can be predicted only out of its historical data. The market I considered is MICEX, the stock is Gazprom (blue chip). The task is to:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;predict the price for the end of the next day (close price)&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;predict upside / downside movement for the end of the next day&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;To check the time of the cells execution in auto mode I use &lt;em&gt;ipython-autotime&lt;/em&gt;.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+!pip install ipython-autotime
+%load_ext autotime
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from datetime import datetime, timedelta
+
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.metrics import mean_squared_error
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Conv1D, Flatten
+from tensorflow.keras.layers import SpatialDropout1D, MaxPooling1D, GlobalAveragePooling1D, GlobalMaxPooling1D
+from tensorflow.keras.layers import LSTM, Bidirectional
+
+inputFolder = 'd/My Drive/01_03_nnMicex/input/'
+
+!ls 'd/My Drive/01_03_nnMicex/input'
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+GAZP_130501_190614.csv	GAZP_190617_191023.csv
+time: 140 ms (started: 2021-05-30 18:01:57 +00:00)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&quot;data-preparation&quot;&gt;Data preparation&lt;/h2&gt;
+
+&lt;p&gt;As input we have train and validation csv files with 6 years of historical data (min, max, open, close, volume) and 4 months to test the model. The step is one day.&lt;/p&gt;
+
+&lt;p&gt;As the first steps we convert the date to &lt;em&gt;datetime&lt;/em&gt; stamp and drop non-informative columns:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+# converting to datetime
+dfTrain['dtime'] = pd.to_datetime(dfTrain['&amp;lt;DATE&amp;gt;'], format='%Y%m%d')
+dfTest['dtime'] = pd.to_datetime(dfTest['&amp;lt;DATE&amp;gt;'], format='%Y%m%d')
+# setting dime index
+dfTrain['dtime'] = pd.to_datetime(dfTrain['&amp;lt;DATE&amp;gt;'], format='%Y%m%d')
+dfTest['dtime'] = pd.to_datetime(dfTest['&amp;lt;DATE&amp;gt;'], format='%Y%m%d')
+# dropping non-feature columns
+dfTrain = dfTrain.drop(columns=['&amp;lt;TICKER&amp;gt;', '&amp;lt;PER&amp;gt;', '&amp;lt;DATE&amp;gt;', '&amp;lt;TIME&amp;gt;'], axis=1)
+dfTest = dfTest.drop(columns=['&amp;lt;TICKER&amp;gt;', '&amp;lt;PER&amp;gt;', '&amp;lt;DATE&amp;gt;', '&amp;lt;TIME&amp;gt;'], axis=1)
+# setting index to datetime
+dfTrain = dfTrain.set_index('dtime')
+dfTest = dfTest.set_index('dtime')
+
+def consistCheck(df):
+    print(f'nulls: {sum([df[col].isnull().sum() for col in df.columns])}')
+    print(f'unique dates vs all values: {df.index.unique().shape[0]} / {df.shape[0]}')
+
+print('train sample:')
+consistCheck(dfTrain)
+print('\ntest sample:')
+consistCheck(dfTest)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+train sample:
+nulls: 0
+unique dates vs all values: 1540 / 1540
+
+test sample:
+nulls: 0
+unique dates vs all values: 93 / 93
+time: 8.78 ms (started: 2021-05-30 18:01:58 +00:00)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Having confirmed that the input is correct let’s plot it:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def plotPrice(df, beg, end):
+    '''plotting eithor the whole or
+    the defined period'''
+    for col in df.columns[:-1]:
+        df[col][beg:end].plot(
+            style='-',
+            figsize=(13,7),
+            title=f'{beg} : {end}'
+        )
+
+periods = [dfTrain.index[0], '2014-05-02', '2015-05-02', '2016-05-02',
+           '2017-05-02', '2018-05-02', dfTrain.index[-1]]
+
+for i in range(len(periods)-1):
+    plotPrice(dfTrain, periods[i], periods[i+1])
+    plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-1.png&quot; /&gt;
+&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-2.png&quot; /&gt;
+&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-3.png&quot; /&gt;
+&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-4.png&quot; /&gt;
+&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-5.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now let’s extract the extra features (year, day of a week, month, etc) from the date itself:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def dateFeat(df):
+    df['year'] = df.index.year
+    df['quarter'] = df.index.quarter
+    df['month'] = df.index.month
+    df['dayOfYear'] = df.index.dayofyear
+    df['dayOfMonth'] = df.index.day
+    df['weekOfYear'] = df.index.isocalendar().week
+    df['dayOfWeek'] = df.index.dayofweek
+
+    return df
+
+dfTrain = dateFeat(dfTrain)
+dfTest = dateFeat(dfTest)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We try to generate some more features by shifting close date for &lt;strong&gt;h&lt;/strong&gt; days and taking first difference with the original series.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def shiftAdd(df, col, h):
+    '''
+    shifting series of a column
+    to h periods ahead &amp;amp; taking 1st diff
+    '''
+    colDf = pd.DataFrame(df[clm], index=df.index)
+    for i in range(1, h+1):
+        colDf[f't{i}'] = 0.0 # init cols for the shifted values
+        colDf.iloc[i:, i] = colDf.iloc[:-i, 0].values # shift values
+
+    # adding diff-s
+    colDf['diff1'] = 0.0
+    for i in range(colDf.shape[0]-1):
+        colDf['diff1'][i] = colDf.iloc[:-1,0][i] - colDf.iloc[1:,0][i]
+
+    # merge all the new features
+    newDf = pd.merge(
+        colDf.reset_index(),
+        df.reset_index(),
+        how='left'
+    ).set_index(colDf.index)
+    newDf = newDf.drop(columns=['dtime'], axis=1)
+    
+    print(newDf.shape)
+
+    return newDf
+
+dfTrain = shiftAdd(dfTrain, '&amp;lt;CLOSE&amp;gt;', 5)
+dfTest = shiftAdd(dfTest, '&amp;lt;CLOSE&amp;gt;', 5)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we are ready to split our train data for the train and validation samples. Let’s take one last year of the train data for the validation sample.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def splitDf(df, split_date):
+    return df.loc[df.index &amp;lt;= split_date].copy(), \
+           df.loc[df.index &amp;gt;  split_date].copy()
+
+trainSamp, valSamp = splitDf(dfTrain, '2018-06-14')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We can also plot the samples for a visual check.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+clmsToVis = ['&amp;lt;CLOSE&amp;gt;', '&amp;lt;OPEN&amp;gt;', '&amp;lt;HIGH&amp;gt;', '&amp;lt;LOW&amp;gt;', '&amp;lt;VOL&amp;gt;']
+for clm in clmsToVis:
+    plt.figure(figsize=(15,7))
+    plt.plot(trainSamp.index, trainSamp[clm], label='Train')
+    plt.plot(valSamp.index, valSamp[clm], label='Validation')
+    plt.title(clm, color='r')
+    plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-6.png&quot; /&gt;
+&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-7.png&quot; /&gt;
+&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-8.png&quot; /&gt;
+&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-9.png&quot; /&gt;
+&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-10.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;After that we are ready to state the target (close price) and scale the sample values that are passed to the neural net.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+# extract target
+yTrain = trainSamp['&amp;lt;CLOSE&amp;gt;'].values
+xTrain = trainSamp.drop(columns='&amp;lt;CLOSE&amp;gt;')
+yVal = valSamp['&amp;lt;CLOSE&amp;gt;'].values
+xVal = valSamp.drop(columns='&amp;lt;CLOSE&amp;gt;')
+
+# scale
+scaler = MinMaxScaler(feature_range=(0,1))
+xTrain = scaler.fit_transform(xTrain)
+xVal = scaler.fit_transform(xVal)
+
+# prep the samples fo the input to the recurrent nn 
+xTrainLstm = xTrain.reshape(xTrain.shape[0], 1, xTrain.shape[1])
+xValLstm = xVal.reshape(xVal.shape[0], 1, xVal.shape[1])
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&quot;fit-the-model&quot;&gt;Fit the model&lt;/h2&gt;
+
+&lt;p&gt;To predict the price we can use different models structures. Let’s try and validate the score.&lt;/p&gt;
+
+&lt;p&gt;The first one will be &lt;a href=&quot;https://en.wikipedia.org/wiki/Long_short-term_memory&quot;&gt;Long Short Term Memory&lt;/a&gt; RNN with &lt;em&gt;mean squarred error&lt;/em&gt; as the loss function and metrics. We have 150 neurons LSTM layer and 1 neuron dense output layer.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+model = Sequential()
+
+model.add(LSTM(150, activation='relu'))
+model.add(Dense(1))
+model.compile(optimizer='adam', loss='mse', metrics=['mse'])
+
+history = model.fit(
+    xTrainLstm, yTrain,
+    epochs=10,
+    validation_data=(xValLstm, yVal),
+    shuffle=False,
+)
+
+plt.plot(history.history['mse'], label='error @train')
+plt.plot(history.history['val_mse'], label='error @val')
+plt.xlabel('epoch')
+plt.ylabel('error %')
+plt.legend()
+plt.show()
+
+print(f&quot;the validation score: {history.history['val_mse'][-1]}&quot;)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-11.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Now we add &lt;em&gt;BatchNormalization&lt;/em&gt; and &lt;em&gt;Dropout&lt;/em&gt; layers.&lt;/p&gt;
+
+&lt;p&gt;Batch normalization applies a transformation that maintains the mean output close to 0 and the output standard deviation close to 1.&lt;/p&gt;
+
+&lt;p&gt;Dropout randomly zeros some of the incoming layers.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+model = Sequential()
+
+model.add(LSTM(150, activation='relu'))
+model.add(BatchNormalization())
+model.add(Dropout(0.2))
+model.add(Dense(100, activation='relu'))
+model.add(Dense(1))
+model.compile(optimizer='adam', loss='mse', metrics=['mse'])
+
+history = model.fit(
+    xTrainLstm, yTrain,
+    epochs=10,
+    validation_data=(xValLstm, yVal),
+    shuffle=False,
+)
+
+plt.plot(history.history['mse'], label='error @train')
+plt.plot(history.history['val_mse'], label='error @val')
+plt.xlabel('epoch')
+plt.ylabel('error %')
+plt.legend()
+plt.show()
+
+print(f&quot;the validation score: {history.history['val_mse'][-1]}&quot;)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-12.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The result is a  much better score. So let’s use this model.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+print(model.summary())
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+Model: &quot;sequential_19&quot;
+_________________________________________________________________
+Layer (type)                 Output Shape              Param #   
+=================================================================
+lstm_22 (LSTM)               (None, 150)               100800    
+_________________________________________________________________
+batch_normalization_13 (Batc (None, 150)               600       
+_________________________________________________________________
+dropout_13 (Dropout)         (None, 150)               0         
+_________________________________________________________________
+dense_27 (Dense)             (None, 100)               15100     
+_________________________________________________________________
+dense_28 (Dense)             (None, 1)                 101       
+=================================================================
+Total params: 116,601
+Trainable params: 116,301
+Non-trainable params: 300
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&quot;test-the-model&quot;&gt;Test the model&lt;/h2&gt;
+&lt;p&gt;The final step is to test the model for the left-off sample of 4 latter months. To do that we need preprocess the sample for the model input and then predict:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+# extract target
+yTest = dfTest['&amp;lt;CLOSE&amp;gt;'].values
+xTest = dfTest.drop(columns='&amp;lt;CLOSE&amp;gt;')
+
+# scale
+# scaler = MinMaxScaler(feature_range=(0,1))
+xTest = scaler.transform(xTest)
+
+# prep the samples fo the input to the recurrent nn 
+xTestLstm = xTest.reshape(xTest.shape[0], 1, xTest.shape[1])
+
+# predicting for test 
+yPredRaw = model.predict(xTestLstm)
+
+# plotting prediction
+plt.plot(yTest, label='true')
+plt.plot(yPredRaw, label='pred')
+plt.legend()
+plt.show()
+
+print(f'mse: {mean_squared_error(y_true=yTest, y_pred=yPredRaw)}')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-30-stock-price-prediction-only-history-13.png&quot; /&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+print(f'mse: {mean_squared_error(y_true=yTest, y_pred=yPredRaw)}')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+# true vs prediction comparison
+print(pd.concat(
+    (pd.DataFrame(yPredRaw, columns=['pred']), 
+     pd.DataFrame(yTest, columns=['true'])
+    ), 
+    axis=1)[:10])
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Obviously the prediction turns out to be lower than the true value (probably because of the intense upside trend. Let’s check can we at least predict the direction of the stock movement if compared today end vs tomorrow end.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+pd.options.mode.chained_assignment = None 
+
+# checking direction 
+cmpr = pd.concat(
+    (pd.DataFrame(yTest, columns=['true'], index=dfTest.index),
+    pd.DataFrame(yPredRaw, columns=['pred'], index=dfTest.index)),
+    axis=1
+)
+
+cmpr['dir_true'] = np.zeros(cmpr.shape[0])
+cmpr['dir_pred'] = np.zeros(cmpr.shape[0])
+cmpr['corr_dir'] = np.zeros(cmpr.shape[0])
+cmpr['dir_true'][0] = 0
+cmpr['dir_pred'][0] = 0
+
+for i in range(1, cmpr.shape[0]):
+    cmpr['dir_true'][i] = cmpr['true'][i] - cmpr['true'][i-1]
+    cmpr['dir_pred'][i] = cmpr['pred'][i] - cmpr['pred'][i-1]
+    if np.sign(cmpr['dir_true'][i]) == np.sign(cmpr['dir_pred'][i]):
+        cmpr['corr_dir'][i] = 1
+    else: 
+        cmpr['corr_dir'][i] = 0
+        
+print(
+    f'================================================\n'
+    f'the share of the correct predictions is '
+    f'{round(cmpr.corr_dir.sum() / cmpr.corr_dir.shape[0]* 100, 2)} %\n'
+    f'================================================\n'
+)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+================================================
+the share of the correct predictions is 54.84 %
+================================================
+
+time: 44.7 ms (started: 2021-05-30 18:02:09 +00:00)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In the case the prediction only out of the price history is no better than the coin toss. The further research might be continued with:&lt;/p&gt;
+
+&lt;ul&gt;
+  &lt;li&gt;more data re world market indices and other stocks&lt;/li&gt;
+  &lt;li&gt;dynamic data about the company fundamential factors (revenue, costs, number of employees, etc)&lt;/li&gt;
+  &lt;li&gt;text parsing of the the news that might contain triggers for the price direction&lt;/li&gt;
+&lt;/ul&gt;</content><author><name></name></author><category term="jekyll" /><category term="update" /><summary type="html">The problem set: In this example I was trying to test if the stock price can be predicted only out of its historical data. The market I considered is MICEX, the stock is Gazprom (blue chip). The task is to:</summary></entry><entry><title type="html">Token</title><link href="/2021/05/27/token.html" rel="alternate" type="text/html" title="Token" /><published>2021-05-27T00:00:00+03:00</published><updated>2021-05-27T00:00:00+03:00</updated><id>/2021/05/27/token</id><content type="html" xml:base="/2021/05/27/token.html">&lt;p&gt;(0) Text -&amp;gt; (1) word indices Vocabulary
+     |                          ↓
+     |— &amp;gt; (2) word indices Sequence&lt;/p&gt;
+
+&lt;h2 id=&quot;text&quot;&gt;Text&lt;/h2&gt;
+&lt;pre&gt;&lt;code&gt;
+text = ['The black cat jumps on the black couch']
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;the output:
+&lt;code&gt;&amp;lt;pre&amp;gt;
+['The black cat jumps on the black couch']
+&lt;/code&gt;&amp;lt;/pre&amp;gt;&lt;/p&gt;
+
+&lt;h2 id=&quot;vocabulary-word-indices-by-frequency&quot;&gt;Vocabulary: word indices by frequency&lt;/h2&gt;
+&lt;pre&gt;&lt;code&gt;
+symbolsToFilter = '!&quot;#$%&amp;amp;()*+,-–—./…:;&amp;lt;=&amp;gt;?@[\\]^_`{|}~«»\t\n\xa0\ufeff'*
+
+tokenizer = Tokenizer( # tensorflow.keras.preprocessing.text
+    num_words = maxWordsCount, # max words to be processed by the model
+    filters = symbolsToFilter,
+    lower = True, # enforce the lower register
+    split = ' ', # split by space
+    oov_token = 'unknown', # replaces all out-of-vocabulary words
+    char_level = False # if True, every charcter is used as token
+)
+
+tokenizer.fit_on_texts(text)
+items = list(tokenizer.word_index.items())
+print(items)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;the output:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+[('unknown', 1), ('the', 2), ('black', 3), ('cat', 4), ('jumps', 5), ('on', 6), ('couch', 7)]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&quot;sequence-of-word-indices&quot;&gt;Sequence of word indices&lt;/h2&gt;
+&lt;pre&gt;&lt;code&gt;
+seq = tokenizer.texts_to_sequences(text)
+print(seq)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;the output:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+[[2, 3, 4, 5, 6, 2, 3, 7]]
+&lt;/code&gt;&lt;/pre&gt;</content><author><name></name></author><summary type="html">(0) Text -&amp;gt; (1) word indices Vocabulary | ↓ |— &amp;gt; (2) word indices Sequence</summary></entry><entry><title type="html">Google Maps API: simple address query</title><link href="/jekyll/update/2021/05/23/google-maps-api-simple-address-querry.html" rel="alternate" type="text/html" title="Google Maps API: simple address query" /><published>2021-05-23T16:05:36+03:00</published><updated>2021-05-23T16:05:36+03:00</updated><id>/jekyll/update/2021/05/23/google-maps-api-simple-address-querry</id><content type="html" xml:base="/jekyll/update/2021/05/23/google-maps-api-simple-address-querry.html">&lt;p&gt;Let’s find out some data on some addresses (top tech uninversities) in Moscow with google API and visualize it with the simple map:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+adrDict = {'MSU': '119991, Российская Федерация, Москва, Ленинские горы, д. 1',
+           'MIPT': '41701, Московская область, г. Долгопрудный, Институтский переулок, д.9.',
+           'HSE': 'Россия, 101000, г. Москва, ул. Мясницкая, д. 20'}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;That will require several simple steps.&lt;/p&gt;
+
+&lt;h3 id=&quot;step-1-we-need-to-get-the-google-maps-api-key&quot;&gt;&lt;strong&gt;STEP 1&lt;/strong&gt;: we need to get the Google Maps API key.&lt;/h3&gt;
+
+&lt;p&gt;You can get the Google Maps API key via &lt;strong&gt;Google Cloud Platform&lt;/strong&gt;:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;Go to the &lt;a href=&quot;https://console.cloud.google.com/project/_/apiui/credential&quot;&gt;Google Cloud Credentials Page&lt;/a&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Click &lt;em&gt;+ CREATE CREDENTIALS&lt;/em&gt; -&amp;gt; &lt;em&gt;API key&lt;/em&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;The next step is to enable your API key for Geocoding. To do that navigate to &lt;a href=&quot;https://console.cloud.google.com/google/maps-apis/overview&quot;&gt;Google Maps Platform&lt;/a&gt; -&amp;gt; &lt;em&gt;APIs&lt;/em&gt; , search for Geocoding and click on &lt;em&gt;Google Maps Geocoding API&lt;/em&gt; -&amp;gt; &lt;em&gt;Enable API&lt;/em&gt;&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;Finally, save and load your API key:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+with open('d/My Drive/googleMap/apikey.txt') as f: # don't forget to update your key location
+    apiKey = f.readline()
+    f.close
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h3 id=&quot;step-2-send-and-get-request&quot;&gt;&lt;strong&gt;STEP 2&lt;/strong&gt;: send and get &lt;strong&gt;REQUEST&lt;/strong&gt;&lt;/h3&gt;
+
+&lt;p&gt;The most common tool to send HTTP request is &lt;a href=&quot;https://docs.python-requests.org/en/master/&quot;&gt;request&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import requests # is an elegant and simple HTTP library for Python, built for human beings (c)
+from collections import defaultdict # useful to to make container to create automatic keys if missing
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now let’s have a function to collect that data in one place:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def getInfo(adrDict):
+    '''
+    collect coordinates data from google maps
+    '''
+    for key in adrDict.keys(): # for every address in the dictionary
+        query = adrDict[key] # get the respective address from the dictionary
+        # make the url for the request
+        url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + query + '&amp;amp;lang=en&amp;amp;key=' + apiKey
+        data[key] = requests.get(url).json() # collect the data and dump it as json
+
+    return data
+
+data = defaultdict(dict) # place all the data to one single variable
+getInfo(adrDict)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The output will be like this:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+defaultdict(dict,
+            {'HSE': {'results': [{'address_components': [{'long_name': '20',
+                  'short_name': '20',
+                  'types': ['street_number']},
+                 {'long_name': 'Myasnitskaya Ulitsa',
+                  'short_name': 'Myasnitskaya Ulitsa',
+                  'types': ['route']},
+                 {'long_name': 'Tsentralnyy administrativnyy okrug',
+                  'short_name': 'Tsentralnyy administrativnyy okrug',
+                  'types': ['political',
+                   'sublocality',
+                   'sublocality_level_1']},
+                 {'long_name': 'Moskva',
+                  'short_name': 'Moskva',
+                  'types': ['locality', 'political']},
+                 {'long_name': 'Basmannyy',
+                  'short_name': 'Basmannyy',
+                  'types': ['administrative_area_level_3', 'political']},
+                 {'long_name': 'Moskva',
+                  'short_name': 'Moskva',
+                  'types': ['administrative_area_level_2', 'political']},
+                 {'long_name': 'Russia',
+                  'short_name': 'RU',
+                  'types': ['country', 'political']},
+                 {'long_name': '101000',
+                  'short_name': '101000',
+                  'types': ['postal_code']}],
+                'formatted_address': 'Myasnitskaya Ulitsa, 20, Moskva, Russia, 101000',
+                'geometry': {'location': {'lat': 55.7615816, 'lng': 37.633323},
+                 'location_type': 'ROOFTOP',
+                 'viewport': {'northeast': {'lat': 55.7629305802915,
+                   'lng': 37.63467198029149},
+                  'southwest': {'lat': 55.7602326197085,
+                   'lng': 37.6319740197085}}},
+                'place_id': 'ChIJhzwS4l1KtUYRapWlISMo4Ek',
+                'plus_code': {'compound_code': 'QJ6M+J8 Basmanny District, Moscow, Russia',
+                 'global_code': '9G7VQJ6M+J8'},
+                'types': ['street_address']}],
+              'status': 'OK'},
+			--- ... ---
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we have the data to visualize.&lt;/p&gt;
+
+&lt;h3 id=&quot;step-3-visualize-with-folium&quot;&gt;&lt;strong&gt;STEP 3&lt;/strong&gt;: visualize with &lt;em&gt;Folium&lt;/em&gt;&lt;/h3&gt;
+
+&lt;p&gt;To make it more convenient let’s store the latitude and longtitute as the dataframe.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import pandas as pd
+
+adrDf = pd.DataFrame(
+    columns = ['Address', 'Latitude', 'Longtitude'],
+    index = list(data.keys())
+)
+
+# for every address in our dictionary we collect he latitude and longtitute data
+for key in data.keys():
+    adrDf.loc[key]['Address'] = adrDict[key] 
+    adrDf.loc[key]['Latitude'] = data[key]['results'][0]['geometry']['location']['lat']
+    adrDf.loc[key]['Longtitude'] = data[key]['results'][0]['geometry']['location']['lng']
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&quot;http://python-visualization.github.io/folium/&quot;&gt;Folium&lt;/a&gt; is the library that helps to visualize data on an interactive leaflet map. It is quite easy to display the address coordinates and no need to upload the map meta data, since you already have it while calling &lt;em&gt;folium.Map&lt;/em&gt; function.&lt;/p&gt;
+
+&lt;p&gt;So we simply initiate the map by passing the mean of our coordinates and the initial zoom of the map to the &lt;em&gt;folium.Map&lt;/em&gt; function&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import folium
+from folium.plugins import MarkerCluster # animated marker Clustering functionality
+
+# init the map
+m = folium.Map(
+    # let's take the mean of the coordinates to form the map
+    location = adrDf[['Latitude', 'Longtitude']].mean().to_list(),  
+    zoom_start=3 # initial zoom level for the map
+)
+
+markerCluster = MarkerCluster().add_to(m) # init clustering
+
+# collect the data 
+for idx in adrDf.index:
+    location = (adrDf.loc[idx]['Latitude'], adrDf.loc[idx]['Longtitude']) # coordinates of a map point
+    folium.Marker(
+        location = location,
+        popup = adrDf.loc[idx]['Address'], # label of a map point
+        tooltip = adrDf.loc[idx]['Address'], # display a text over the object
+    ).add_to(markerCluster)
+
+m # display the map
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let’s save the resulting map into HTML file:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+m.save('2021-05-23-google-maps-api-simple-address-querry.html')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h4 id=&quot;the-map-with-the-label-markers&quot;&gt;the map with the label markers:&lt;/h4&gt;
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-23-google-maps-api-simple-address-querry.png&quot; /&gt;&lt;/p&gt;</content><author><name></name></author><category term="jekyll" /><category term="update" /><summary type="html">Let’s find out some data on some addresses (top tech uninversities) in Moscow with google API and visualize it with the simple map: adrDict = {'MSU': '119991, Российская Федерация, Москва, Ленинские горы, д. 1', 'MIPT': '41701, Московская область, г. Долгопрудный, Институтский переулок, д.9.', 'HSE': 'Россия, 101000, г. Москва, ул. Мясницкая, д. 20'}</summary></entry><entry><title type="html">Google Maps API: простой запрос по адресу</title><link href="/jekyll/update/2021/05/23/google-maps-api-%D0%BF%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B9-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81-%D0%BF%D0%BE-%D0%B0%D0%B4%D1%80%D0%B5%D1%81%D1%83.html" rel="alternate" type="text/html" title="Google Maps API: простой запрос по адресу" /><published>2021-05-23T16:05:36+03:00</published><updated>2021-05-23T16:05:36+03:00</updated><id>/jekyll/update/2021/05/23/google-maps-api-%D0%BF%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B9-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81-%D0%BF%D0%BE-%D0%B0%D0%B4%D1%80%D0%B5%D1%81%D1%83</id><content type="html" xml:base="/jekyll/update/2021/05/23/google-maps-api-%D0%BF%D1%80%D0%BE%D1%81%D1%82%D0%BE%D0%B9-%D0%B7%D0%B0%D0%BF%D1%80%D0%BE%D1%81-%D0%BF%D0%BE-%D0%B0%D0%B4%D1%80%D0%B5%D1%81%D1%83.html">&lt;p&gt;Задача собрать информацию (в этом примере - координаты) по нескольким физическим адресам через API &lt;em&gt;Google Maps&lt;/em&gt;. Возьмем адреса нескольких ведущих москвоских ВУЗов, соберем координаты, визуализируем на карте.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+adrDict = {'MSU': '119991, Российская Федерация, Москва, Ленинские горы, д. 1',
+           'MIPT': '41701, Московская область, г. Долгопрудный, Институтский переулок, д.9.',
+           'HSE': 'Россия, 101000, г. Москва, ул. Мясницкая, д. 20'}
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Выполнить это можно в несколько шагов.&lt;/p&gt;
+
+&lt;h5 id=&quot;шаг-1-заберем-свой-api-ключ-google-maps&quot;&gt;&lt;strong&gt;ШАГ 1&lt;/strong&gt;: заберем свой API ключ Google Maps.&lt;/h5&gt;
+
+&lt;p&gt;Сделать это можно на сайте &lt;strong&gt;Google Cloud Platform&lt;/strong&gt;. Для этого:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;Идем на сайт &lt;a href=&quot;https://console.cloud.google.com/project/_/apiui/credential&quot;&gt;Google Cloud Credentials&lt;/a&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Переходим &lt;em&gt;+ CREATE CREDENTIALS&lt;/em&gt; -&amp;gt; &lt;em&gt;API key&lt;/em&gt;&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Далее необходимо авторизовать API для сервиса Geocoding. для этого переходим на &lt;a href=&quot;https://console.cloud.google.com/google/maps-apis/overview&quot;&gt;Google Maps Platform&lt;/a&gt; -&amp;gt; &lt;em&gt;APIs&lt;/em&gt; , ищем Geocoding and кликаем &lt;em&gt;Google Maps Geocoding API&lt;/em&gt; -&amp;gt; &lt;em&gt;Enable API&lt;/em&gt;&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;p&gt;После этого можно сохранить ключ у себяи загрузить его в переменную.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+with open('d/My Drive/googleMap/apikey.txt') as f: # don't forget to update your key location
+    apiKey = f.readline()
+    f.close
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&quot;шаг-2-отправить-запрос-и-получить-ответ-через--request&quot;&gt;&lt;strong&gt;ШАГ 2&lt;/strong&gt;: отправить запрос и получить ответ через  &lt;strong&gt;REQUEST&lt;/strong&gt;&lt;/h2&gt;
+
+&lt;p&gt;Одна из самых распростаненных библиотек для отправки / получения запросов &lt;a href=&quot;https://docs.python-requests.org/en/master/&quot;&gt;request&lt;/a&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import requests # простая HTTP библиотека для запросов
+from collections import defaultdict # удобная фукнция для хранения массивов даже без заранее прописанного ключа
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Теперь пропишем функцию для того, чтобы собрать все входящие в одном удобном датафрейме.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def getInfo(adrDict):
+    '''
+    забираем и сохраняем в json координаты с google maps
+    '''
+    for key in adrDict.keys(): # для каждого указанного места
+        query = adrDict[key] # берем физический адрес
+        # и вставляем в запрос
+        url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + query + '&amp;amp;lang=ru&amp;amp;key=' + apiKey
+        data[key] = requests.get(url).json() # сохраняем результат как json
+
+    return data
+
+data = defaultdict(dict) # обработанные координаты кидаем в один словарь
+getInfo(adrDict)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;По результату запроса получим следующий выход (в формате json&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+defaultdict(dict,
+            {'HSE': {'results': [{'address_components': [{'long_name': '20',
+                  'short_name': '20',
+                  'types': ['street_number']},
+                 {'long_name': 'Myasnitskaya Ulitsa',
+                  'short_name': 'Myasnitskaya Ulitsa',
+                  'types': ['route']},
+                 {'long_name': 'Tsentralnyy administrativnyy okrug',
+                  'short_name': 'Tsentralnyy administrativnyy okrug',
+                  'types': ['political',
+                   'sublocality',
+                   'sublocality_level_1']},
+                 {'long_name': 'Moskva',
+                  'short_name': 'Moskva',
+                  'types': ['locality', 'political']},
+                 {'long_name': 'Basmannyy',
+                  'short_name': 'Basmannyy',
+                  'types': ['administrative_area_level_3', 'political']},
+                 {'long_name': 'Moskva',
+                  'short_name': 'Moskva',
+                  'types': ['administrative_area_level_2', 'political']},
+                 {'long_name': 'Russia',
+                  'short_name': 'RU',
+                  'types': ['country', 'political']},
+                 {'long_name': '101000',
+                  'short_name': '101000',
+                  'types': ['postal_code']}],
+                'formatted_address': 'Myasnitskaya Ulitsa, 20, Moskva, Russia, 101000',
+                'geometry': {'location': {'lat': 55.7615816, 'lng': 37.633323},
+                 'location_type': 'ROOFTOP',
+                 'viewport': {'northeast': {'lat': 55.7629305802915,
+                   'lng': 37.63467198029149},
+                  'southwest': {'lat': 55.7602326197085,
+                   'lng': 37.6319740197085}}},
+                'place_id': 'ChIJhzwS4l1KtUYRapWlISMo4Ek',
+                'plus_code': {'compound_code': 'QJ6M+J8 Basmanny District, Moscow, Russia',
+                 'global_code': '9G7VQJ6M+J8'},
+                'types': ['street_address']}],
+              'status': 'OK'},
+			--- ... ---
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Теперь визуализируем это на карте&lt;/p&gt;
+
+&lt;h5 id=&quot;шаг-3-визиализируем-с-помочщью-folium&quot;&gt;&lt;strong&gt;ШАГ 3&lt;/strong&gt;: визиализируем с помочщью &lt;em&gt;Folium&lt;/em&gt;&lt;/h5&gt;
+
+&lt;p&gt;Для удобства долготу и ширину географических объектов размещаю в датафрейме&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import pandas as pd
+
+adrDf = pd.DataFrame(
+    columns = ['Address', 'Latitude', 'Longtitude'],
+    index = list(data.keys())
+)
+
+# for every address in our dictionary we collect he latitude and longtitute data
+for key in data.keys():
+    adrDf.loc[key]['Address'] = adrDict[key] 
+    adrDf.loc[key]['Latitude'] = data[key]['results'][0]['geometry']['location']['lat']
+    adrDf.loc[key]['Longtitude'] = data[key]['results'][0]['geometry']['location']['lng']
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;a href=&quot;http://python-visualization.github.io/folium/&quot;&gt;Folium&lt;/a&gt; очень удобная и простая для начинающих библиотека, с помощью которой можно визуализировать адреса на &lt;em&gt;интерактивной карте&lt;/em&gt;. Нет нужды подгружать дополнительные исходники, просто вызываем функцию &lt;em&gt;folium.Map&lt;/em&gt;. Передаем координаты, ставим исходный масштаб приближения и готово:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import folium
+from folium.plugins import MarkerCluster # функция анимированной кластеризации
+
+# инициализируем карту
+m = folium.Map(
+    # берем среднее по кооридантам для центровки
+    location = adrDf[['Latitude', 'Longtitude']].mean().to_list(), #
+    zoom_start=10 # ставим исходное приближение
+)
+
+markerCluster = MarkerCluster().add_to(m) # инициализируем кластеризацию
+
+# собираем данные из датафрейма
+for idx in adrDf.index:
+    location = (adrDf.loc[idx]['Latitude'], adrDf.loc[idx]['Longtitude']) # наши координаты
+    folium.Marker(
+        location = location,
+        popup = adrDf.loc[idx]['Address'], # имя точки
+        tooltip = adrDf.loc[idx]['Address'], # текст поверх точек
+    ).add_to(markerCluster)
+
+m # рисуем карту
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Сохраняем в HTML:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+m.save('2021-05-23-google-maps-api-simple-address-querry.html')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id=&quot;в-итоге-получаем-карту-с-адресами&quot;&gt;в итоге получаем карту с адресами:&lt;/h2&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-23-google-maps-api-simple-address-querry.png&quot; /&gt;&lt;/p&gt;</content><author><name></name></author><category term="jekyll" /><category term="update" /><summary type="html">Задача собрать информацию (в этом примере - координаты) по нескольким физическим адресам через API Google Maps. Возьмем адреса нескольких ведущих москвоских ВУЗов, соберем координаты, визуализируем на карте.</summary></entry><entry><title type="html">Authorship Detection By Text</title><link href="/jekyll/update/2021/05/23/authorship-detection-by-text.html" rel="alternate" type="text/html" title="Authorship Detection By Text" /><published>2021-05-23T16:05:36+03:00</published><updated>2021-05-23T16:05:36+03:00</updated><id>/jekyll/update/2021/05/23/authorship-detection-by-text</id><content type="html" xml:base="/jekyll/update/2021/05/23/authorship-detection-by-text.html">&lt;p&gt;&lt;strong&gt;Probem set:&lt;/strong&gt; In this example we have the database of the public appeals (RUS) devided by categories. The task is to classify the upcoming appeals based on the text within.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras import utils
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Embedding, Flatten, BatchNormalization
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;As the initial source we have the zip with the txt files already divided into the train and test split. Each file contains the the works of famous authors (Bradberry, Henry, Bulgakov…). Let’s extract the zip into a single directory:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+!unzip *drive/My Drive/nn/_4/Тексты-писателей-20210525T170220Z-001.zip*
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The txt files’ names containt the reference - either it is the train or the test. So let’s collect them into the separate lists: one for the all the texts labeled as train, the other one - as test.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def readText(fileName): 
+    '''
+    collect all the texts
+    '''
+    f = open(fileName, 'r')
+    text = f.read()
+    text = text.replace('\n', ' ')
+
+    return text
+
+# define the labels
+labels = ['О. Генри', 'Стругацкие', 'Булгаков', 'Саймак', 'Фрай', 'Брэдберри']
+nLabels = len(labels)
+
+inputFolder = 'Тексты писателей/'
+
+def collectTexts(inputFolder=inputFolder):
+    '''
+    collect all texts into the train and test smaples
+    '''
+    trainText, testText = [], []
+    for label in labels:
+        for fileName in os.listdir(inputFolder):
+            if label in fileName:
+                if 'Обучающая' in fileName:
+                    trainText.append(readText(inputFolder + fileName))
+                    print(f'{fileName} added to the train sample')
+                if 'Тестовая' in fileName:
+                    testText.append(readText(inputFolder+fileName))
+                    print(f'{fileName} added to the test sample')
+
+    return trainText, testText
+
+trainText, testText = collectTexts()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+(О. Генри) Тестовая_20 вместе.txt added to the test sample
+(О. Генри) Обучающая_50 вместе.txt added to the train sample
+(Стругацкие) Тестовая_2 вместе.txt added to the test sample
+(Стругацкие) Обучающая_5 вместе.txt added to the train sample
+(Булгаков) Тестовая_2 вместе.txt added to the test sample
+(Булгаков) Обучающая_5 вместе.txt added to the train sample
+(Клиффорд_Саймак) Тестовая_2 вместе.txt added to the test sample
+(Клиффорд_Саймак) Обучающая_5 вместе.txt added to the train sample
+(Макс Фрай) Тестовая_2 вместе.txt added to the test sample
+(Макс Фрай) Обучающая_5 вместе.txt added to the train sample
+(Рэй Брэдберри) Тестовая_8 вместе.txt added to the test sample
+(Рэй Брэдберри) Обучающая_22 вместе.txt added to the train sample
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;as the result we have the texts of 6 authors both in train and test samples&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+print(f'train: {len(trainText)}, test: {len(testText)}')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;To speed up the model fit process and reduce RAM usage we set the up limit of the words to use from the sample:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+maxWordsCount = 20000
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;em&gt;The&lt;/em&gt; important step to pass the text to the model is to correctly convert it to the numerics. That can be performed in several steps:&lt;/p&gt;
+
+&lt;p&gt;&lt;strong&gt;STEP 1:&lt;/strong&gt; word tokenization&lt;/p&gt;
+
+&lt;p&gt;We need to split our texts into the single words array and fit the tokenizer based on it.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+# all the symbols to exclude from the processed text
+symbolsToFilter = *'!&quot;#$%&amp;amp;()*+,-–—./…:;&amp;lt;=&amp;gt;?@[\\]^_`{|}~«»\t\n\xa0\ufeff'*
+
+# tensorflow.keras.preprocessing.text
+tokenizer = Tokenizer(
+    num_words = maxWordsCount, # max words to be processed by the model
+    filters = symbolsToFilter,
+    lower = True, # enforce the lower register
+    split = ' ', # split by space
+    oov_token = 'unknown', # replaces all out-of-vocabulary words
+    char_level = False # if True, every charcter is used as token
+)
+
+tokenizer.fit_on_texts(trainText)
+items = list(tokenizer.word_index.items())
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let’s check the size of the resulting vocabulary top 10 frequent words in it:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+print(f'top 10 frequent words:\n{items[-10:]}')
+print()
+print(f'vocabulary size: {len(items)}')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+top 10 frequent words:
+[('поджарьте', 133061), ('заполните', 133062), ('мучающие', 133063), ('погремушкой', 133064), ('свистком', 133065), ('потерян', 133066), ('расплывающиеся', 133067), ('миллионе', 133068), ('зияющая', 133069), ('ничтонавстречу', 133070)]
+
+vocabulary size: 133070
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This is how you can check the index of any word:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def checkIndex(word=input()):
+    try:
+        return f'index is {tokenizer.word_index[word]} out of {len(items)}'
+    except KeyError:
+        return 'no such word in vocabulary'
+
+checkIndex()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;strong&gt;STEP 2:&lt;/strong&gt; convert tokens into the numeric sequence&lt;/p&gt;
+
+&lt;p&gt;We call the &lt;em&gt;fit_on_sequence&lt;/em&gt; method for our tokenizer:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+trainWordIndices = tokenizer.texts_to_sequences(trainText)
+testWordIndices = tokenizer.texts_to_sequences(testText)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let’s check the origin and numeric sequence:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+print(f'original sequence\n{trainText[2][:80]}')
+print(f'numeric sequence\n{trainWordIndices[2][:20]}')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now we can extract some statitics based on the results:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+myCount = {
+    'symbolsInTrain' : 0,
+    'wordsInTrain' : 0,
+    'symbolsInTest' : 0,
+    'wordsInTest' : 0,
+}
+
+print('-------------------')
+print('TRAIN STATS:')
+print('-------------------')
+for i in range(nLabels):
+    print(
+        labels[i], 
+        ' ' * (10 - len(labels[i])), 
+        len(trainText[i]), 'symbols, ',
+        len(trainWordIndices[i]), 'words'
+    )
+    myCount['symbolsInTrain'] += len(trainText[i])
+    myCount['wordsInTrain'] += len(trainWordIndices[i])
+
+print(
+    'in total:', 
+    ' ' * 1, 
+    myCount['symbolsInTrain'], 'symbols, ',
+    myCount['wordsInTrain'], 'words'
+)
+print('-------------------')
+
+print('TEST STATS:')
+print('-------------------')
+for i in range(nLabels):
+    print(
+        labels[i], 
+        ' ' * (10 - len(labels[i])), 
+        len(testText[i]), 'symbols, ',
+        len(testWordIndices[i]), 'words'
+    )
+    myCount['symbolsInTest'] += len(testText[i])
+    myCount['wordsInTest'] += len(testWordIndices[i])
+
+print(
+    'in total:', 
+    ' ' * 1, 
+    myCount['symbolsInTest'], 'symbols, ',
+    myCount['wordsInTest'], 'words'
+)
+print('-------------------')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+-------------------
+TRAIN STATS:
+-------------------
+О. Генри    1049517 symbols,  160607 words
+Стругацкие  2042469 symbols,  313012 words
+Булгаков    1765648 symbols,  261465 words
+Саймак      1609507 symbols,  251502 words
+Фрай        3700010 symbols,  568533 words
+Брэдберри   1386454 symbols,  214454 words
+in total:   11553605 symbols,  1769573 words
+-------------------
+TEST STATS:
+-------------------
+О. Генри    349662 symbols,  53238 words
+Стругацкие  704846 symbols,  108621 words
+Булгаков    875042 symbols,  132730 words
+Саймак      318811 symbols,  50360 words
+Фрай        1278191 symbols,  196731 words
+Брэдберри   868673 symbols,  132524 words
+in total:   4395225 symbols,  674204 words
+-------------------
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;strong&gt;STEP 3:&lt;/strong&gt; Prepare the train and test inputs for the model.&lt;/p&gt;
+
+&lt;p&gt;This step implies the following sequence:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Get the array of the word indices (&lt;em&gt;wordIndices&lt;/em&gt;)&lt;/li&gt;
+  &lt;li&gt;Cut the sample with the given length (&lt;em&gt;xLen&lt;/em&gt;)&lt;/li&gt;
+  &lt;li&gt;Dump it to the container&lt;/li&gt;
+  &lt;li&gt;Take a step from the begining of the previous sample (&lt;em&gt;step&lt;/em&gt;)&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def getSetFromIndices(wordIndices, xLen, step):
+    '''
+    slice indices of words into the saples of the
+    given length (xLen) by the given step
+    '''
+    xSample = []
+    wordsLen = len(wordIndices)
+    index = 0
+
+    while (index + xLen &amp;lt;= wordsLen):
+        xSample.append(wordIndices[index:index + xLen])
+        index += step
+
+    return xSample
+
+def createSetsMultiClasses(wordIndices, xLen, step):
+    '''
+    prepare both the train and test input for the model 
+    '''
+    nLabels = len(wordIndices) # get the number of word indices
+    classesXSamples = [] 
+    for wIdx in wordIndices:
+        classesXSamples.append(getSetFromIndices(wIdx, xLen, step))
+    # classesXSamples shape:
+    # labels count x steps count x steps length (xLen)
+
+    xSamples, ySamples = [], []
+    for l in range(nLabels): # for every label
+        xL = classesXSamples[l] # collect all the arrays of the respective sample
+        for i in range(len(xL)):
+            xSamples.append(xL[i]) # dump each array into the features list
+            ySamples.append(utils.to_categorical(l, nLabels)) # collect the label as a binary matrix
+
+    xSamples, ySamples = np.array(xSamples), np.array(ySamples)
+
+    return (xSamples, ySamples)
+
+xLen = 1000
+step = 100
+
+xTrain, yTrain = createSetsMultiClasses(trainWordIndices, xLen, step)
+xTest, yTest = createSetsMultiClasses(testWordIndices, xLen, step)
+print(
+    f'the shapes:\nxTrain: {xTrain.shape}, \nxTest: {xTest.shape}',
+    f'\nyTest: {yTrain.shape}, \nyTest: {yTest.shape}'
+)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Finally we convert the resulting indices into the boolean matrix alike Bag of Words format. This can be performed with method &lt;em&gt;sequences_to_matrix&lt;/em&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+xTrainB = tokenizer.sequences_to_matrix(xTrain.tolist())
+xTestB = tokenizer.sequences_to_matrix(xTest.tolist())
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Example of what we get as the output:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+print(f'the shape: {xTrainB.shape}')
+print('first 100 elements:')
+print(xTrainB[0][:100])
+
+the shape: (17640, 20000)
+first 100 elements:
+[0. 1. 1. 1. 1. 0. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 1. 0. 1. 1.
+ 0. 0. 1. 1. 0. 1. 1. 1. 1. 0. 0. 0. 1. 1. 1. 1. 1. 1. 1. 1. 0. 1. 1. 0.
+ 0. 1. 1. 1. 0. 0. 1. 1. 0. 0. 0. 1. 0. 0. 0. 1. 1. 0. 1. 1. 0. 0. 0. 0.
+ 1. 1. 0. 0. 1. 0. 1. 0. 1. 0. 0. 0. 0. 1. 1. 1. 1. 0. 0. 1. 0. 0. 1. 1.
+ 0. 0. 1. 1.]
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Following the preprocessing steps we can dive in the NN model build-up. The model architecture may vary, let’s try dense layers with dropout and batchnormalization.&lt;/p&gt;
+
+&lt;p&gt;Dropout layer randomly sets input units to 0 with a frequency of rate at each step during training time, which helps prevent overfitting.&lt;/p&gt;
+
+&lt;p&gt;We will apply &lt;em&gt;ReLU&lt;/em&gt; as the activation function to the dense layer. The function will output the input directly if it is positive, otherwise, it will output zero. The math formula:&lt;/p&gt;
+
+\[y = max(0, x)\]
+
+&lt;p&gt;As the last activation function we apply &lt;em&gt;softmax&lt;/em&gt; which take input of N numbers and normalizes it (by applying the standard exponential function) into N probabilites proportional to the exponentials if the input numbers.
+Tha math formula:&lt;/p&gt;
+
+\[\sigma(z)_i = \frac{e^{z_i}}{\Sigma^K_{j=1} e^{z_i}}\]
+
+&lt;p&gt;The loss function applied is the cross-entropy loss, or log loss, whcik measures the performance of a classification model whose output is a probability value between 0 and 1. Cross-entropy loss increases as the predicted probability diverges from the actual label. The math formula:&lt;/p&gt;
+
+\[CE = - \Sigma^C_i t_i x log(s_i)\]
+
+&lt;p&gt;where:&lt;/p&gt;
+
+&lt;p&gt;$ t_i $ is the groundtruth&lt;/p&gt;
+
+&lt;p&gt;$ s_i $ is the model prediction&lt;/p&gt;
+
+&lt;p&gt;$ i $ is a label&lt;/p&gt;
+
+&lt;p&gt;$ C $ is the number of labels&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+modelD = Sequential()
+modelD.add(Dense(
+    200, # number of neurons
+    input_dim = maxWordsCount, # the input shape must be passed to the 1st stated layer 
+    activation='relu' 
+))
+modelD.add(Dropout(0.25))
+modelD.add(BatchNormalization())
+modelD.add(Dense(nLabels, activation='softmax'))
+
+modelD.compile(
+    optimizer='adam',
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = modelD.fit(
+    xTrainB,
+    yTrain,
+    epochs=20,
+    batch_size=128,
+    validation_data = (xTestB, yTest)
+)
+
+plt.plot(history.history['accuracy'], label='correct answers @train')
+plt.plot(history.history['val_accuracy'], label='correct answers @test')
+plt.xlabel('epoch')
+plt.ylabel('correct prediction share')
+plt.legend()
+plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+Epoch 1/20
+138/138 [==============================] - 11s 75ms/step - loss: 0.0505 - accuracy: 0.9850 - val_loss: 0.3764 - val_accuracy: 0.9037
+Epoch 2/20
+138/138 [==============================] - 10s 72ms/step - loss: 3.6209e-04 - accuracy: 1.0000 - val_loss: 0.3164 - val_accuracy: 0.9068
+Epoch 3/20
+138/138 [==============================] - 10s 72ms/step - loss: 1.7111e-04 - accuracy: 1.0000 - val_loss: 0.3161 - val_accuracy: 0.9014
+Epoch 4/20
+138/138 [==============================] - 10s 75ms/step - loss: 1.0510e-04 - accuracy: 1.0000 - val_loss: 0.3092 - val_accuracy: 0.9014
+Epoch 5/20
+138/138 [==============================] - 10s 72ms/step - loss: 8.1488e-05 - accuracy: 1.0000 - val_loss: 0.3041 - val_accuracy: 0.9023
+Epoch 6/20
+138/138 [==============================] - 10s 71ms/step - loss: 6.0976e-05 - accuracy: 1.0000 - val_loss: 0.3013 - val_accuracy: 0.9035
+Epoch 7/20
+138/138 [==============================] - 10s 72ms/step - loss: 4.6316e-05 - accuracy: 1.0000 - val_loss: 0.2974 - val_accuracy: 0.9046
+Epoch 8/20
+138/138 [==============================] - 10s 72ms/step - loss: 3.8414e-05 - accuracy: 1.0000 - val_loss: 0.3013 - val_accuracy: 0.9035
+Epoch 9/20
+138/138 [==============================] - 10s 73ms/step - loss: 3.3897e-05 - accuracy: 1.0000 - val_loss: 0.3007 - val_accuracy: 0.9026
+Epoch 10/20
+138/138 [==============================] - 10s 74ms/step - loss: 2.9758e-05 - accuracy: 1.0000 - val_loss: 0.2971 - val_accuracy: 0.9043
+Epoch 11/20
+138/138 [==============================] - 10s 73ms/step - loss: 2.4322e-05 - accuracy: 1.0000 - val_loss: 0.2957 - val_accuracy: 0.9047
+Epoch 12/20
+138/138 [==============================] - 10s 72ms/step - loss: 2.0997e-05 - accuracy: 1.0000 - val_loss: 0.2963 - val_accuracy: 0.9040
+Epoch 13/20
+138/138 [==============================] - 10s 72ms/step - loss: 1.8370e-05 - accuracy: 1.0000 - val_loss: 0.2963 - val_accuracy: 0.9040
+Epoch 14/20
+138/138 [==============================] - 10s 72ms/step - loss: 1.8250e-05 - accuracy: 1.0000 - val_loss: 0.2963 - val_accuracy: 0.9044
+Epoch 15/20
+138/138 [==============================] - 10s 71ms/step - loss: 1.6745e-05 - accuracy: 1.0000 - val_loss: 0.2952 - val_accuracy: 0.9029
+Epoch 16/20
+138/138 [==============================] - 10s 71ms/step - loss: 1.4096e-05 - accuracy: 1.0000 - val_loss: 0.2960 - val_accuracy: 0.9025
+Epoch 17/20
+138/138 [==============================] - 10s 72ms/step - loss: 1.2515e-05 - accuracy: 1.0000 - val_loss: 0.2949 - val_accuracy: 0.9025
+Epoch 18/20
+138/138 [==============================] - 10s 72ms/step - loss: 1.2019e-05 - accuracy: 1.0000 - val_loss: 0.2923 - val_accuracy: 0.9034
+Epoch 19/20
+138/138 [==============================] - 10s 71ms/step - loss: 1.0969e-05 - accuracy: 1.0000 - val_loss: 0.2951 - val_accuracy: 0.9032
+Epoch 20/20
+138/138 [==============================] - 10s 71ms/step - loss: 9.8800e-06 - accuracy: 1.0000 - val_loss: 0.2933 - val_accuracy: 0.9031
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-27-authorship-detection-by-text-1.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;Upon model fit we can pass the test samples to validate the accuracy. We can do that in 2 steps:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;
+    &lt;p&gt;collect the binary matrices for the test sample (similiar to what we have done with the train sample)&lt;/p&gt;
+  &lt;/li&gt;
+  &lt;li&gt;
+    &lt;p&gt;Pass the matrices into the model for the prediction &amp;amp; check the score&lt;/p&gt;
+  &lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def createTestMultiClasses(wordIndices, xLen, step):
+    nLabels = len(wordIndices)
+    xTestLabels, xTestLabelsB = [], []
+    for wIdx in wordIndices:
+        sample = (getSetFromIndices(wIdx, xLen, step))
+        xTestLabels.append(sample)
+        xTestLabelsB.append(tokenizer.sequences_to_matrix(sample))
+
+    xTestLabels, xTestLabelsB = np.array(xTestLabels, dtype=object), np.array(xTestLabelsB, dtype=object)
+
+    return xTestLabels, xTestLabelsB
+
+def recognizeMultiLabels(model, xTest, modelName):
+    print(f'model: {modelName}')
+
+    totalSumRec = 0 # sum up the correct predictions
+
+    for i in range(nLabels):
+        currPred = model.predict(xTest[i]) # predict
+        currOut = np.argmax(currPred, axis=1) # get the index of the max element
+
+        evVal = []
+        for j in range(nLabels): # for every label
+            evVal.append(len(currOut[currOut==j]) / len(xTest[i]))
+        totalSumRec += len(currOut[currOut==i])
+        recognizedLabel = np.argmax(evVal)
+
+        isRecognized = 'false prediction'
+        if (recognizedLabel == i):
+            isRecognized = 'correct prediction'
+
+        tempStr = 'Label: ' + labels[i] + ' ' * (11 - len(labels[i])) +\
+        str(int(100*evVal[i])) + '% the model recognized as ' + labels[recognizedLabel]
+        print(tempStr, ' ' * (55 - len(tempStr)), isRecognized, sep ='')
+
+    print()
+    sumCount = 0
+    for i in range(nLabels):
+        sumCount += len(xTest[i])
+    print(f'average prediction rate: {int(100*totalSumRec/sumCount)} %')
+
+    return totalSumRec / sumCount
+
+xTestLabels, xTestLabelsB = createTestMultiClasses(testWordIndices, xLen, step)
+pred = recognizeMultiLabels(modelD, xTestLabelsB, 'Dense')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;output:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+model: Dense
+Label: О. Генри   93% the model recognized as О. Генри correct prediction
+Label: Стругацкие 89% the model recognized as Стругацкиеcorrect prediction
+Label: Булгаков   83% the model recognized as Булгаков correct prediction
+Label: Саймак     87% the model recognized as Саймак   correct prediction
+Label: Фрай       89% the model recognized as Фрай     correct prediction
+Label: Брэдберри  98% the model recognized as Брэдберриcorrect prediction
+
+average prediction rate: 90 %
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Let’s check what happens if we use not the matrix but the array of the indeces itself. W’ll apply the &lt;em&gt;Embedding&lt;/em&gt; layer which turns positive integers into dense vectors of the fixed size.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+modelE = Sequential()
+modelE.add(Embedding(maxWordsCount, 20, input_length=xLen))
+modelE.add(Dropout(0.2))
+modelE.add(Flatten())
+modelE.add(BatchNormalization())
+modelE.add(Dense(200, activation='relu'))
+modelE.add(Dropout(0.2))
+modelE.add(BatchNormalization())
+modelE.add(Dense(6, activation='sigmoid'))
+
+modelE.compile(
+    optimizer='adam',
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
+history = modelE.fit(
+    xTrain, yTrain,
+    epochs = 20,
+    batch_size = 128,
+    validation_data = (xTest, yTest)
+)
+
+plt.plot(history.history['accuracy'], label='correct answers @train')
+plt.plot(history.history['val_accuracy'], label='correct answers @test')
+plt.xlabel('epoch')
+plt.ylabel('correct prediction share')
+plt.legend()
+plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;output:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+Epoch 1/20
+138/138 [==============================] - 25s 178ms/step - loss: 0.7350 - accuracy: 0.7702 - val_loss: 1.8049 - val_accuracy: 0.3365
+Epoch 2/20
+138/138 [==============================] - 24s 173ms/step - loss: 0.0077 - accuracy: 0.9998 - val_loss: 1.5086 - val_accuracy: 0.4403
+Epoch 3/20
+138/138 [==============================] - 24s 172ms/step - loss: 0.0035 - accuracy: 1.0000 - val_loss: 1.1990 - val_accuracy: 0.5156
+Epoch 4/20
+138/138 [==============================] - 24s 172ms/step - loss: 0.0019 - accuracy: 1.0000 - val_loss: 0.9421 - val_accuracy: 0.6415
+Epoch 5/20
+138/138 [==============================] - 24s 172ms/step - loss: 0.0013 - accuracy: 1.0000 - val_loss: 0.8406 - val_accuracy: 0.6988
+Epoch 6/20
+138/138 [==============================] - 24s 175ms/step - loss: 8.7682e-04 - accuracy: 1.0000 - val_loss: 0.8153 - val_accuracy: 0.7188
+Epoch 7/20
+138/138 [==============================] - 24s 172ms/step - loss: 6.7539e-04 - accuracy: 1.0000 - val_loss: 0.8051 - val_accuracy: 0.7278
+Epoch 8/20
+138/138 [==============================] - 24s 173ms/step - loss: 5.7175e-04 - accuracy: 1.0000 - val_loss: 0.7913 - val_accuracy: 0.7341
+Epoch 9/20
+138/138 [==============================] - 24s 175ms/step - loss: 4.4960e-04 - accuracy: 1.0000 - val_loss: 0.7881 - val_accuracy: 0.7374
+Epoch 10/20
+138/138 [==============================] - 24s 173ms/step - loss: 3.5192e-04 - accuracy: 1.0000 - val_loss: 0.7890 - val_accuracy: 0.7375
+Epoch 11/20
+138/138 [==============================] - 24s 173ms/step - loss: 2.9417e-04 - accuracy: 1.0000 - val_loss: 0.7839 - val_accuracy: 0.7402
+Epoch 12/20
+138/138 [==============================] - 24s 172ms/step - loss: 2.7420e-04 - accuracy: 1.0000 - val_loss: 0.7804 - val_accuracy: 0.7424
+Epoch 13/20
+138/138 [==============================] - 24s 174ms/step - loss: 2.2254e-04 - accuracy: 1.0000 - val_loss: 0.7778 - val_accuracy: 0.7439
+Epoch 14/20
+138/138 [==============================] - 24s 173ms/step - loss: 1.8824e-04 - accuracy: 1.0000 - val_loss: 0.7788 - val_accuracy: 0.7444
+Epoch 15/20
+138/138 [==============================] - 24s 173ms/step - loss: 1.6237e-04 - accuracy: 1.0000 - val_loss: 0.7760 - val_accuracy: 0.7463
+Epoch 16/20
+138/138 [==============================] - 24s 173ms/step - loss: 1.4674e-04 - accuracy: 1.0000 - val_loss: 0.7728 - val_accuracy: 0.7475
+Epoch 17/20
+138/138 [==============================] - 24s 174ms/step - loss: 1.2645e-04 - accuracy: 1.0000 - val_loss: 0.7730 - val_accuracy: 0.7483
+Epoch 18/20
+138/138 [==============================] - 24s 176ms/step - loss: 1.0677e-04 - accuracy: 1.0000 - val_loss: 0.7640 - val_accuracy: 0.7540
+Epoch 19/20
+138/138 [==============================] - 24s 176ms/step - loss: 9.9545e-05 - accuracy: 1.0000 - val_loss: 0.7673 - val_accuracy: 0.7519
+Epoch 20/20
+138/138 [==============================] - 24s 176ms/step - loss: 9.2081e-05 - accuracy: 1.0000 - val_loss: 0.7698 - val_accuracy: 0.7519
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-27-authorship-detection-by-text-2.png&quot; /&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+xTestLabels, xTestLabelsB = createTestMultiClasses(testWordIndices, xLen, step)
+pred = recognizeMultiLabels(modelE, xTestLabels, 'Dense')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;output:&lt;/p&gt;
+&lt;pre&gt;&lt;code&gt;
+model: Dense
+Label: О. Генри   86% the model recognized as О. Генри correct prediction
+Label: Стругацкие 84% the model recognized as Стругацкиеcorrect prediction
+Label: Булгаков   58% the model recognized as Булгаков correct prediction
+Label: Саймак     67% the model recognized as Саймак   correct prediction
+Label: Фрай       83% the model recognized as Фрай     correct prediction
+Label: Брэдберри  71% the model recognized as Брэдберриcorrect prediction
+
+average prediction rate: 75 %
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In general, the text processing can be drawn as follows:&lt;/p&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-05-27-authorship-detection-by-text-4.png&quot; /&gt;&lt;/p&gt;</content><author><name></name></author><category term="jekyll" /><category term="update" /><summary type="html">Probem set: In this example we have the database of the public appeals (RUS) devided by categories. The task is to classify the upcoming appeals based on the text within.</summary></entry><entry><title type="html">Public Appeals Category Prediction</title><link href="/jekyll/update/2021/05/23/Public-Appeals-Category-Prediction.html" rel="alternate" type="text/html" title="Public Appeals Category Prediction" /><published>2021-05-23T16:05:36+03:00</published><updated>2021-05-23T16:05:36+03:00</updated><id>/jekyll/update/2021/05/23/Public-Appeals-Category-Prediction</id><content type="html" xml:base="/jekyll/update/2021/05/23/Public-Appeals-Category-Prediction.html">&lt;p&gt;&lt;strong&gt;Probem set:&lt;/strong&gt; In this example we have the database of the public appeals (RUS) devided by categories. The task is to classify the upcoming appeals based on the text within.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+import numpy as np
+import pandas as pd
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
+
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras import utils
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Dropout, Embedding, Flatten, BatchNormalization, SpatialDropout1D
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+
+df = pd.read_csv('d/My Drive/nn/_4/clean_data.csv')
+df = df.iloc[:, :2]
+print(df.info())
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+RangeIndex: 10059 entries, 0 to 10058
+Data columns (total 2 columns):
+ #   Column    Non-Null Count  Dtype 
+---  ------    --------------  ----- 
+ 0   text      10059 non-null  object
+ 1   category  8262 non-null   object
+dtypes: object(2)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+for cat in df.category.unique():
+    print(
+        f'the number of records in category {cat}: '
+        f'{df[df.category == cat].shape[0]}'
+    )
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+the number of records in category Дороги и транспорт: 1411
+the number of records in category ЖКХ: 2063
+the number of records in category Строительство: 349
+the number of records in category Спорт: 246
+the number of records in category Благо­­устрой­­ство: 1686
+the number of records in category Образование и наука: 290
+the number of records in category Культура: 100
+the number of records in category Демография: 20
+the number of records in category Социальная сфера: 370
+the number of records in category Другое: 208
+the number of records in category Бизнес: 187
+the number of records in category Здравоохранение: 368
+the number of records in category Органы власти: 244
+the number of records in category Экология: 180
+the number of records in category Правопорядок: 172
+the number of records in category Труд и занятость населения: 151
+the number of records in category Борьба с коррупцией: 59
+the number of records in category Промышленность: 13
+the number of records in category Сельское хозяйство: 50
+the number of records in category Земельные отношения: 80
+the number of records in category Туризм: 15
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;strong&gt;STEP 0:&lt;/strong&gt; extract texts and labels&lt;/p&gt;
+
+&lt;p&gt;Simple step to extract the required data:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+texts = df.text.values # extract the texts (-&amp;gt; features)
+labels = list(df.category.values) # -&amp;gt; labels
+nLabels = df.category.nunique() + 1 # number of categories
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;strong&gt;STEP 1:&lt;/strong&gt; convert the text to the &lt;em&gt;Bags Of Words&lt;/em&gt;&lt;/p&gt;
+
+&lt;p&gt;We need to split our texts into the single words array and fit the tokenizer based on it. The next step to convert the resulting indices into the boolean matrix alike Bag of Words format. This can be performed with method &lt;em&gt;sequences_to_matrix&lt;/em&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+# all the symbols to exclude from the processed text
+symbolsToFilter = *'!&quot;#$%&amp;amp;()*+,-./:;&amp;lt;=&amp;gt;?@[\\]^_`{|}~\t\n'
+maxWordsCount = 60000 # max words to be processed by the model
+
+tokenizer = Tokenizer(
+    num_words = maxWordsCount, 
+    filters = symbolsToFilter, 
+    lower = True, # enforce the lower register
+    split = ' ', # split by space
+    oov_token = 'unknown', # replaces all out-of-vocabulary words
+    char_level = False # if True, every charcter is used as token
+)
+
+tokenizer.fit_on_texts(texts)
+xAll = tokenizer.texts_to_matrix(texts)
+
+print(f'the vocabulary size: {len(tokenizer.word_index.items())}')
+print(xAll.shape)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The text is processed, now we need to encode the labels. To do that we’ll apply &lt;a href=&quot;https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.LabelEncoder.html&quot;&gt;LabelEncoder()&lt;/a&gt; from scikit-learn tools and &lt;em&gt;utils.to_categorical&lt;/em&gt;. The steps will be:&lt;/p&gt;
+
+&lt;p&gt;text -&amp;gt; integer code -&amp;gt; binary matrix&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+encoder = LabelEncoder()
+encoder.fit(labels)
+labelsEncoded = encoder.transform(labels)
+yAll = utils.to_categorical(labelsEncoded, len(set(labels)))
+
+print(f'labels encoded shape: {labelsEncoded.shape}')
+print('the example of the encoded labels:')
+print(labelsEncoded[:20])
+print('the example of the binary label form:')
+print(yAll[0])
+print(yAll.shape)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+labels encoded shape: (10059,)
+the example of the encoded labels:
+[ 5  7 18 17  5  5  5  5  2  5 17  5 17 11 18  7  2 10  7  5]
+the example of the binary label form:
+[0. 0. 0. 0. 0. 1. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+(10059, 22)
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now let’s prepare the input for the model and prepare the train and test samples:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+xTrain, xVal, yTrain, yVal = train_test_split(xAll, yAll, test_size=0.2)
+print(f'the shapes are: {xTrain.shape, yTrain.shape, xVal.shape, yVal.shape}')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+the shapes are: ((8047, 60000), (8047, 22), (2012, 60000), (2012, 22))
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Now let’s build the model up. We set 3 dense layers with the dropout. The activation functions are &lt;em&gt;ReLU (rectified linear unit)&lt;/em&gt; for the input and hidden layers + &lt;em&gt;softmax&lt;/em&gt; for the output layer. The loss function is &lt;em&gt;categorical crossentropy&lt;/em&gt;.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+modelD = Sequential()
+modelD.add(Dense(
+    100, 
+    input_dim = maxWordsCount,
+    activation = 'relu'
+))
+modelD.add(Dropout(0.4))
+modelD.add(Dense(100, activation='relu'))
+modelD.add(Dropout(0.4))
+modelD.add(Dense(100, activation='relu'))
+modelD.add(Dropout(0.4))
+modelD.add(Dense(len(set(labels)), activation='softmax'))
+
+modelD.compile(
+    optimizer = 'adam',
+    loss = 'categorical_crossentropy',
+    metrics = ['accuracy']
+)
+
+history = modelD.fit(
+    xTrain, yTrain,
+    epochs=20,
+    batch_size=128,
+    validation_data = (xVal, yVal)
+)
+
+plt.plot(history.history['accuracy'], label='correct answers @train')
+plt.plot(history.history['val_accuracy'], label='correct answers @test')
+plt.xlabel('epoch')
+plt.ylabel('correct prediction share')
+plt.legend()
+plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-06-13-Public-Appeals-Category-Prediction-1.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The score is quite low (54% @ validation). Let’s try the &lt;em&gt;Embedding&lt;/em&gt; layer. To do that:&lt;/p&gt;
+&lt;ol&gt;
+  &lt;li&gt;transfrom text to sequences with &lt;a href=&quot;https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/text/Tokenizer&quot;&gt;tf.keras.preprocessing.text.Tokenizer&lt;/a&gt;&lt;/li&gt;
+  &lt;li&gt;tranfrom the resulting sequences to &lt;strong&gt;the&lt;/strong&gt; 2D arrays with the funtion &lt;a href=&quot;https://www.tensorflow.org/api_docs/python/tf/keras/preprocessing/sequence/pad_sequences&quot;&gt;tf.keras.preprocessing.sequence.pad_sequences&lt;/a&gt;&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;pre&gt;&lt;code&gt;
+maxLen = 400
+
+Sequences = tokenizer.texts_to_sequences(texts)
+npSequences = np.array(Sequences, dtype=object)
+
+xTrainE, xValE, yTrainE, yValE = train_test_split(npSequences, yAll, test_size=0.2)
+
+xTrainE = pad_sequences(xTrainE, maxlen=maxLen, padding='pre', truncating='pre')
+xValE = pad_sequences(xValE, maxlen=maxLen, padding='pre', truncating='pre')
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Pass the prerocessed data to the model:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+modelE = Sequential()
+modelE.add(Embedding(maxWordsCount, 50, input_length=maxLen))
+modelE.add(SpatialDropout1D(0.4))
+modelE.add(Flatten())
+modelE.add(BatchNormalization())
+modelE.add(Dense(64, activation='relu'))
+modelE.add(Dropout(0.4))
+modelE.add(BatchNormalization())
+modelE.add(Dense(len(set(labels)), activation='softmax'))
+
+modelE.compile(
+    optimizer = 'adam',
+    loss = 'categorical_crossentropy',
+    metrics = ['accuracy']
+)
+
+history = modelE.fit(
+    xTrainE, yTrainE,
+    epochs = 20,
+    batch_size = 50,
+    validation_data = (xValE, yValE)
+)
+
+plt.plot(history.history['accuracy'], label='correct answers @train')
+plt.plot(history.history['val_accuracy'], label='correct answers @test')
+plt.xlabel('epoch')
+plt.ylabel('correct prediction share')
+plt.legend()
+plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-06-13-Public-Appeals-Category-Prediction-2.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;The result with the Embedding layer is even worser. Therefore we can try to filter the text and the raw texts at first:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Set the minimum and max number of text lines corresponding to each&lt;/li&gt;
+  &lt;li&gt;Drop the empty lines&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;pre&gt;&lt;code&gt;
+minCountStrings, maxCountStrings = 300, 400
+df = df.dropna().reset_index()
+
+for label in df.category.unique():
+    initLen = df[df.category == label].shape[0]
+    if df[df.category == label].shape[0] &amp;lt; minCountStrings:
+        df = df.drop(df[df.category == label].index)
+    if df[df.category == label].shape[0] &amp;gt; maxCountStrings:
+        df = df.drop(df[df.category == label].index[maxCountStrings:])
+    print(f'Total records of label {label} : {initLen}, collected: {df[df.category == label].shape[0]}')
+
+df = df.reset_index()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+Total records of label Дороги и транспорт : 1411, collected: 400
+Total records of label ЖКХ : 2063, collected: 400
+Total records of label Строительство : 349, collected: 349
+Total records of label Спорт : 246, collected: 0
+Total records of label Благо­­устрой­­ство : 1686, collected: 400
+Total records of label Образование и наука : 290, collected: 0
+Total records of label Культура : 100, collected: 0
+Total records of label Демография : 20, collected: 0
+Total records of label Социальная сфера : 370, collected: 370
+Total records of label Другое : 208, collected: 0
+Total records of label Бизнес : 187, collected: 0
+Total records of label Здравоохранение : 368, collected: 368
+Total records of label Органы власти : 244, collected: 0
+Total records of label Экология : 180, collected: 0
+Total records of label Правопорядок : 172, collected: 0
+Total records of label Труд и занятость населения : 151, collected: 0
+Total records of label Борьба с коррупцией : 59, collected: 0
+Total records of label Промышленность : 13, collected: 0
+Total records of label Сельское хозяйство : 50, collected: 0
+Total records of label Земельные отношения : 80, collected: 0
+Total records of label Туризм : 15, collected: 0
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+texts = df.text.values
+labels = list(df.category.values)
+nLabels = df.category.nunique() + 1
+
+maxWordsCount = 60000 
+
+tokenizer = Tokenizer(
+    num_words = maxWordsCount, 
+    filters = symbolsToFilter, 
+    lower = True, 
+    split = ' ', 
+    oov_token = 'unknown', 
+    char_level = False 
+)
+
+tokenizer.fit_on_texts(texts)
+xAll = tokenizer.texts_to_matrix(texts)
+
+encoder = LabelEncoder()
+encoder.fit(labels)
+labelsEncoded = encoder.transform(labels)
+yAll = utils.to_categorical(labelsEncoded, len(set(labels)))
+
+xTrain, xVal, yTrain, yVal = train_test_split(xAll, yAll, test_size=0.2)
+print(f'the shapes are: {xTrain.shape, yTrain.shape, xVal.shape, yVal.shape}')
+
+modelD = Sequential()
+modelD.add(Dense(
+    100, 
+    input_dim = maxWordsCount,
+    activation = 'relu'
+))
+modelD.add(Dropout(0.4))
+modelD.add(Dense(100, activation='relu'))
+modelD.add(Dropout(0.4))
+modelD.add(Dense(100, activation='relu'))
+modelD.add(Dropout(0.4))
+modelD.add(Dense(len(set(labels)), activation='softmax'))
+
+modelD.compile(
+    optimizer = 'adam',
+    loss = 'categorical_crossentropy',
+    metrics = ['accuracy']
+)
+
+history = modelD.fit(
+    xTrain, yTrain,
+    epochs=20,
+    batch_size=128,
+    validation_data = (xVal, yVal)
+)
+
+plt.plot(history.history['accuracy'], label='correct answers @train')
+plt.plot(history.history['val_accuracy'], label='correct answers @test')
+plt.xlabel('epoch')
+plt.ylabel('correct prediction share')
+plt.legend()
+plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-06-13-Public-Appeals-Category-Prediction-3.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;With the raw text filtered we managed to increase the score up to 82%. Let’s check if it works for the embedding layer:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+npSequences = np.array(tokenizer.texts_to_sequences(texts), dtype=object)
+xTrainE, xValE, yTrainE, yValE = train_test_split(npSequences, yAll, test_size=0.2)
+
+xTrainE = pad_sequences(xTrainE, maxlen=maxLen, padding='pre', truncating='pre')
+xValE = pad_sequences(xValE, maxlen=maxLen, padding='pre', truncating='pre')
+
+print(f'the shapes are: {xTrainE.shape, yTrainE.shape, xValE.shape, yValE.shape}')
+
+modelE = Sequential()
+modelE.add(Embedding(maxWordsCount, 50, input_length=maxLen))
+modelE.add(SpatialDropout1D(0.4))
+modelE.add(Flatten())
+modelE.add(BatchNormalization())
+modelE.add(Dense(64, activation='relu'))
+modelE.add(Dropout(0.4))
+modelE.add(BatchNormalization())
+modelE.add(Dense(len(set(labels)), activation='softmax'))
+
+modelE.compile(
+    optimizer = 'adam',
+    loss = 'categorical_crossentropy',
+    metrics = ['accuracy']
+)
+
+history = modelE.fit(
+    xTrainE, yTrainE,
+    epochs = 20,
+    batch_size = 50,
+    validation_data = (xValE, yValE)
+)
+
+plt.plot(history.history['accuracy'], label='correct answers @train')
+plt.plot(history.history['val_accuracy'], label='correct answers @test')
+plt.xlabel('epoch')
+plt.ylabel('correct prediction share')
+plt.legend()
+plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-06-13-Public-Appeals-Category-Prediction-4.png&quot; /&gt;&lt;/p&gt;
+
+&lt;p&gt;In this case and under this structure the dense model with the embedding layer is still a bad idea, the score is lower than 50%.&lt;/p&gt;
+
+&lt;p&gt;Let’s try another approcah - we slice our train sample in the following way:&lt;/p&gt;
+
+&lt;ol&gt;
+  &lt;li&gt;Get the array of the word indices (&lt;em&gt;wordIndices&lt;/em&gt;)&lt;/li&gt;
+  &lt;li&gt;Cut the sample with the given length (&lt;em&gt;xLen&lt;/em&gt;)&lt;/li&gt;
+  &lt;li&gt;Dump it to the container&lt;/li&gt;
+  &lt;li&gt;Take a step from the begining of the previous sample (&lt;em&gt;step&lt;/em&gt;)&lt;/li&gt;
+&lt;/ol&gt;
+
+&lt;pre&gt;&lt;code&gt;
+df = pd.read_csv('d/My Drive/nn/_4/clean_data.csv')
+df = df.iloc[:, :2]
+
+
+minCountStrings, maxCountStrings = 300, 400
+df = df.dropna().reset_index()
+
+for label in df.category.unique():
+    initLen = df[df.category == label].shape[0]
+    if df[df.category == label].shape[0] &amp;lt; minCountStrings:
+        df = df.drop(df[df.category == label].index)
+    if df[df.category == label].shape[0] &amp;gt; maxCountStrings:
+        df = df.drop(df[df.category == label].index[maxCountStrings:])
+    print(f'Total records of label {label} : {initLen}, collected: {df[df.category == label].shape[0]}')
+
+df = df.reset_index()
+
+texts = df.text.values
+labels = list(df.category.values)
+nLabels = df.category.nunique() + 1
+
+maxWordsCount = 50000
+
+symbolsToFilter = *'!&quot;#$%&amp;amp;()*+,-./:;&amp;lt;=&amp;gt;?@[\\]^_`{|}~\t\n'
+tokenizer = Tokenizer(
+    num_words = maxWordsCount,
+    filters = symbolsToFilter,
+    lower = True,
+    split = ' ',
+    oov_token = 'unknown',
+    char_level = False
+)
+
+tokenizer.fit_on_texts(texts)
+
+encoder = LabelEncoder()
+encoder.fit(labels)
+labelsEncoded = encoder.transform(labels)
+yAll = utils.to_categorical(labelsEncoded, len(set(labels)))
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+Total records of label Дороги и транспорт : 1411, collected: 400
+Total records of label ЖКХ : 2063, collected: 400
+Total records of label Строительство : 349, collected: 349
+Total records of label Спорт : 246, collected: 0
+Total records of label Благо­­устрой­­ство : 1686, collected: 400
+Total records of label Образование и наука : 290, collected: 0
+Total records of label Культура : 100, collected: 0
+Total records of label Демография : 20, collected: 0
+Total records of label Социальная сфера : 370, collected: 370
+Total records of label Другое : 208, collected: 0
+Total records of label Бизнес : 187, collected: 0
+Total records of label Здравоохранение : 368, collected: 368
+Total records of label Органы власти : 244, collected: 0
+Total records of label Экология : 180, collected: 0
+Total records of label Правопорядок : 172, collected: 0
+Total records of label Труд и занятость населения : 151, collected: 0
+Total records of label Борьба с коррупцией : 59, collected: 0
+Total records of label Промышленность : 13, collected: 0
+Total records of label Сельское хозяйство : 50, collected: 0
+Total records of label Земельные отношения : 80, collected: 0
+Total records of label Туризм : 15, collected: 0
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def getSetFromIndices(wordIndices, xLen, step):
+    xSample = []
+    wordsLen = len(wordIndices)
+    index = 0
+
+    while (index + xLen &amp;lt;= wordsLen):
+        xSample.append(wordIndices[index : index+ xLen])
+        index += step
+
+    return xSample
+
+def createSetsMultiClasses(wordIndices, xLen, step):
+    nLabels = len(wordIndices)
+    classesXSamples = []
+    for wIdx in wordIndices:
+        # print(wIdx)
+        classesXSamples.append(getSetFromIndices(wIdx, xLen, step))
+    
+    xSamples, ySamples = [], []
+    for l in range(nLabels):
+        xL = classesXSamples[l]
+        for i in range(len(xL)):
+            xSamples.append(xL[i])
+            ySamples.append(yAll[l])
+
+    xSamples, ySamples = np.array(xSamples), np.array(ySamples)
+
+    return (xSamples, ySamples)
+
+wordIndices = tokenizer.texts_to_sequences(texts)
+
+xTrainI, xValI, yTrain, yVal = train_test_split(wordIndices, yAll, test_size=0.3)
+
+xLen = 50
+step = 10
+xTrain, yTrain = createSetsMultiClasses(xTrainI, xLen, step)
+xVal, yVal = createSetsMultiClasses(xValI, xLen, step)
+
+print(xTrain.shape, yTrain.shape)
+print(xVal.shape, yVal.shape)
+
+xTrainB = tokenizer.sequences_to_matrix(xTrain.tolist())
+xValB = tokenizer.sequences_to_matrix(xVal.tolist())
+
+print(xTrainB.shape, yTrain.shape)
+print(xValB.shape, yVal.shape)
+
+modelD = Sequential()
+modelD.add(Dense(
+    100, 
+    input_dim = maxWordsCount,
+    activation = 'relu'
+))
+modelD.add(Dropout(0.4))
+modelD.add(Dense(100, activation='relu'))
+modelD.add(Dropout(0.3))
+modelD.add(Dense(100, activation='relu'))
+modelD.add(Dropout(0.2))
+modelD.add(Dense(len(set(labels)), activation='softmax'))
+
+modelD.compile(
+    optimizer = 'adam',
+    loss = 'categorical_crossentropy',
+    metrics = ['accuracy']
+)
+
+history = modelD.fit(
+    xTrainB, yTrain,
+    epochs=20,
+    batch_size=128,
+    validation_data = (xValB, yVal)
+)
+
+plt.plot(history.history['accuracy'], label='correct answers @train')
+plt.plot(history.history['val_accuracy'], label='correct answers @test')
+plt.xlabel('epoch')
+plt.ylabel('correct prediction share')
+plt.legend()
+plt.show()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;&lt;img src=&quot;/assets/img/2021-06-13-Public-Appeals-Category-Prediction-5.png&quot; /&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;
+def modelPred():
+    probs = modelD.predict(xValB)
+    preds = [np.argmax(prob) for prob in probs]
+    gTrues = [np.argmax(gTrue) for gTrue in yVal]
+
+    correctPred = 0
+    for idx in range(len(preds)):
+        if preds[idx] == gTrues[idx]:
+            correctPred +=1
+        
+    return f'model score is {round(correctPred / len(preds), 2) * 100} %'
+
+modelPred()
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;model score is 22.0 %&lt;/p&gt;
+
+&lt;p&gt;The score is bad. Probably the lower slice length and step will do the trick, but the RAM available to me is not sufficient to perform that.&lt;/p&gt;</content><author><name></name></author><category term="jekyll" /><category term="update" /><summary type="html">Probem set: In this example we have the database of the public appeals (RUS) devided by categories. The task is to classify the upcoming appeals based on the text within.</summary></entry></feed>

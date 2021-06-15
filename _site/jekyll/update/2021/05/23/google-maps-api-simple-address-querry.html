@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1"><!-- Begin Jekyll SEO tag v2.7.1 -->
+<title>Google Maps API: simple address query | readMe, my specs</title>
+<meta name="generator" content="Jekyll v4.2.0" />
+<meta property="og:title" content="Google Maps API: simple address query" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Let’s find out some data on some addresses (top tech uninversities) in Moscow with google API and visualize it with the simple map: adrDict = {&#39;MSU&#39;: &#39;119991, Российская Федерация, Москва, Ленинские горы, д. 1&#39;, &#39;MIPT&#39;: &#39;41701, Московская область, г. Долгопрудный, Институтский переулок, д.9.&#39;, &#39;HSE&#39;: &#39;Россия, 101000, г. Москва, ул. Мясницкая, д. 20&#39;}" />
+<meta property="og:description" content="Let’s find out some data on some addresses (top tech uninversities) in Moscow with google API and visualize it with the simple map: adrDict = {&#39;MSU&#39;: &#39;119991, Российская Федерация, Москва, Ленинские горы, д. 1&#39;, &#39;MIPT&#39;: &#39;41701, Московская область, г. Долгопрудный, Институтский переулок, д.9.&#39;, &#39;HSE&#39;: &#39;Россия, 101000, г. Москва, ул. Мясницкая, д. 20&#39;}" />
+<link rel="canonical" href="/jekyll/update/2021/05/23/google-maps-api-simple-address-querry.html" />
+<meta property="og:url" content="/jekyll/update/2021/05/23/google-maps-api-simple-address-querry.html" />
+<meta property="og:site_name" content="readMe, my specs" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2021-05-23T16:05:36+03:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="Google Maps API: simple address query" />
+<script type="application/ld+json">
+{"@type":"BlogPosting","mainEntityOfPage":{"@type":"WebPage","@id":"/jekyll/update/2021/05/23/google-maps-api-simple-address-querry.html"},"headline":"Google Maps API: simple address query","dateModified":"2021-05-23T16:05:36+03:00","datePublished":"2021-05-23T16:05:36+03:00","url":"/jekyll/update/2021/05/23/google-maps-api-simple-address-querry.html","description":"Let’s find out some data on some addresses (top tech uninversities) in Moscow with google API and visualize it with the simple map: adrDict = {&#39;MSU&#39;: &#39;119991, Российская Федерация, Москва, Ленинские горы, д. 1&#39;, &#39;MIPT&#39;: &#39;41701, Московская область, г. Долгопрудный, Институтский переулок, д.9.&#39;, &#39;HSE&#39;: &#39;Россия, 101000, г. Москва, ул. Мясницкая, д. 20&#39;}","@context":"https://schema.org"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="stylesheet" href="/assets/main.css"><link type="application/atom+xml" rel="alternate" href="/feed.xml" title="readMe, my specs" /></head>
+<body><header class="site-header" role="banner">
+
+  <div class="wrapper"><a class="site-title" rel="author" href="/">readMe, my specs</a><nav class="site-nav">
+        <input type="checkbox" id="nav-trigger" class="nav-trigger" />
+        <label for="nav-trigger">
+          <span class="menu-icon">
+            <svg viewBox="0 0 18 15" width="18px" height="15px">
+              <path d="M18,1.484c0,0.82-0.665,1.484-1.484,1.484H1.484C0.665,2.969,0,2.304,0,1.484l0,0C0,0.665,0.665,0,1.484,0 h15.032C17.335,0,18,0.665,18,1.484L18,1.484z M18,7.516C18,8.335,17.335,9,16.516,9H1.484C0.665,9,0,8.335,0,7.516l0,0 c0-0.82,0.665-1.484,1.484-1.484h15.032C17.335,6.031,18,6.696,18,7.516L18,7.516z M18,13.516C18,14.335,17.335,15,16.516,15H1.484 C0.665,15,0,14.335,0,13.516l0,0c0-0.82,0.665-1.483,1.484-1.483h15.032C17.335,12.031,18,12.695,18,13.516L18,13.516z"/>
+            </svg>
+          </span>
+        </label>
+
+        <div class="trigger"><a class="page-link" href="/cv/">CV</a><a class="page-link" href="/courses/">Courses</a><a class="page-link" href="/about/">About</a></div>
+      </nav></div>
+</header>
+<main class="page-content" aria-label="Content">
+      <div class="wrapper">
+        <article class="post h-entry" itemscope itemtype="http://schema.org/BlogPosting">
+
+  <header class="post-header">
+    <h1 class="post-title p-name" itemprop="name headline">Google Maps API: simple address query</h1>
+    <p class="post-meta">
+      <time class="dt-published" datetime="2021-05-23T16:05:36+03:00" itemprop="datePublished">May 23, 2021
+      </time></p>
+  </header>
+
+  <div class="post-content e-content" itemprop="articleBody">
+    <p>Let’s find out some data on some addresses (top tech uninversities) in Moscow with google API and visualize it with the simple map:</p>
+<pre><code>
+adrDict = {'MSU': '119991, Российская Федерация, Москва, Ленинские горы, д. 1',
+           'MIPT': '41701, Московская область, г. Долгопрудный, Институтский переулок, д.9.',
+           'HSE': 'Россия, 101000, г. Москва, ул. Мясницкая, д. 20'}
+</code></pre>
+
+<p>That will require several simple steps.</p>
+
+<h3 id="step-1-we-need-to-get-the-google-maps-api-key"><strong>STEP 1</strong>: we need to get the Google Maps API key.</h3>
+
+<p>You can get the Google Maps API key via <strong>Google Cloud Platform</strong>:</p>
+
+<ol>
+  <li>
+    <p>Go to the <a href="https://console.cloud.google.com/project/_/apiui/credential">Google Cloud Credentials Page</a></p>
+  </li>
+  <li>
+    <p>Click <em>+ CREATE CREDENTIALS</em> -&gt; <em>API key</em></p>
+  </li>
+  <li>
+    <p>The next step is to enable your API key for Geocoding. To do that navigate to <a href="https://console.cloud.google.com/google/maps-apis/overview">Google Maps Platform</a> -&gt; <em>APIs</em> , search for Geocoding and click on <em>Google Maps Geocoding API</em> -&gt; <em>Enable API</em></p>
+  </li>
+</ol>
+
+<p>Finally, save and load your API key:</p>
+
+<pre><code>
+with open('d/My Drive/googleMap/apikey.txt') as f: # don't forget to update your key location
+    apiKey = f.readline()
+    f.close
+</code></pre>
+
+<h3 id="step-2-send-and-get-request"><strong>STEP 2</strong>: send and get <strong>REQUEST</strong></h3>
+
+<p>The most common tool to send HTTP request is <a href="https://docs.python-requests.org/en/master/">request</a></p>
+
+<pre><code>
+import requests # is an elegant and simple HTTP library for Python, built for human beings (c)
+from collections import defaultdict # useful to to make container to create automatic keys if missing
+</code></pre>
+
+<p>Now let’s have a function to collect that data in one place:</p>
+
+<pre><code>
+def getInfo(adrDict):
+    '''
+    collect coordinates data from google maps
+    '''
+    for key in adrDict.keys(): # for every address in the dictionary
+        query = adrDict[key] # get the respective address from the dictionary
+        # make the url for the request
+        url = 'https://maps.googleapis.com/maps/api/geocode/json?address=' + query + '&amp;lang=en&amp;key=' + apiKey
+        data[key] = requests.get(url).json() # collect the data and dump it as json
+
+    return data
+
+data = defaultdict(dict) # place all the data to one single variable
+getInfo(adrDict)
+</code></pre>
+
+<p>The output will be like this:</p>
+
+<pre><code>
+defaultdict(dict,
+            {'HSE': {'results': [{'address_components': [{'long_name': '20',
+                  'short_name': '20',
+                  'types': ['street_number']},
+                 {'long_name': 'Myasnitskaya Ulitsa',
+                  'short_name': 'Myasnitskaya Ulitsa',
+                  'types': ['route']},
+                 {'long_name': 'Tsentralnyy administrativnyy okrug',
+                  'short_name': 'Tsentralnyy administrativnyy okrug',
+                  'types': ['political',
+                   'sublocality',
+                   'sublocality_level_1']},
+                 {'long_name': 'Moskva',
+                  'short_name': 'Moskva',
+                  'types': ['locality', 'political']},
+                 {'long_name': 'Basmannyy',
+                  'short_name': 'Basmannyy',
+                  'types': ['administrative_area_level_3', 'political']},
+                 {'long_name': 'Moskva',
+                  'short_name': 'Moskva',
+                  'types': ['administrative_area_level_2', 'political']},
+                 {'long_name': 'Russia',
+                  'short_name': 'RU',
+                  'types': ['country', 'political']},
+                 {'long_name': '101000',
+                  'short_name': '101000',
+                  'types': ['postal_code']}],
+                'formatted_address': 'Myasnitskaya Ulitsa, 20, Moskva, Russia, 101000',
+                'geometry': {'location': {'lat': 55.7615816, 'lng': 37.633323},
+                 'location_type': 'ROOFTOP',
+                 'viewport': {'northeast': {'lat': 55.7629305802915,
+                   'lng': 37.63467198029149},
+                  'southwest': {'lat': 55.7602326197085,
+                   'lng': 37.6319740197085}}},
+                'place_id': 'ChIJhzwS4l1KtUYRapWlISMo4Ek',
+                'plus_code': {'compound_code': 'QJ6M+J8 Basmanny District, Moscow, Russia',
+                 'global_code': '9G7VQJ6M+J8'},
+                'types': ['street_address']}],
+              'status': 'OK'},
+			--- ... ---
+</code></pre>
+
+<p>Now we have the data to visualize.</p>
+
+<h3 id="step-3-visualize-with-folium"><strong>STEP 3</strong>: visualize with <em>Folium</em></h3>
+
+<p>To make it more convenient let’s store the latitude and longtitute as the dataframe.</p>
+
+<pre><code>
+import pandas as pd
+
+adrDf = pd.DataFrame(
+    columns = ['Address', 'Latitude', 'Longtitude'],
+    index = list(data.keys())
+)
+
+# for every address in our dictionary we collect he latitude and longtitute data
+for key in data.keys():
+    adrDf.loc[key]['Address'] = adrDict[key] 
+    adrDf.loc[key]['Latitude'] = data[key]['results'][0]['geometry']['location']['lat']
+    adrDf.loc[key]['Longtitude'] = data[key]['results'][0]['geometry']['location']['lng']
+</code></pre>
+
+<p><a href="http://python-visualization.github.io/folium/">Folium</a> is the library that helps to visualize data on an interactive leaflet map. It is quite easy to display the address coordinates and no need to upload the map meta data, since you already have it while calling <em>folium.Map</em> function.</p>
+
+<p>So we simply initiate the map by passing the mean of our coordinates and the initial zoom of the map to the <em>folium.Map</em> function</p>
+
+<pre><code>
+import folium
+from folium.plugins import MarkerCluster # animated marker Clustering functionality
+
+# init the map
+m = folium.Map(
+    # let's take the mean of the coordinates to form the map
+    location = adrDf[['Latitude', 'Longtitude']].mean().to_list(),  
+    zoom_start=3 # initial zoom level for the map
+)
+
+markerCluster = MarkerCluster().add_to(m) # init clustering
+
+# collect the data 
+for idx in adrDf.index:
+    location = (adrDf.loc[idx]['Latitude'], adrDf.loc[idx]['Longtitude']) # coordinates of a map point
+    folium.Marker(
+        location = location,
+        popup = adrDf.loc[idx]['Address'], # label of a map point
+        tooltip = adrDf.loc[idx]['Address'], # display a text over the object
+    ).add_to(markerCluster)
+
+m # display the map
+</code></pre>
+
+<p>Let’s save the resulting map into HTML file:</p>
+<pre><code>
+m.save('2021-05-23-google-maps-api-simple-address-querry.html')
+</code></pre>
+
+<h4 id="the-map-with-the-label-markers">the map with the label markers:</h4>
+<p><img src="/assets/img/2021-05-23-google-maps-api-simple-address-querry.png" /></p>
+
+  </div><a class="u-url" href="/jekyll/update/2021/05/23/google-maps-api-simple-address-querry.html" hidden></a>
+</article>
+
+      </div>
+    </main><footer class="site-footer h-card">
+  <data class="u-url" href="/"></data>
+
+  <div class="wrapper">
+
+    <h2 class="footer-heading">readMe, my specs</h2>
+
+    <div class="footer-col-wrapper">
+      <div class="footer-col footer-col-1">
+        <ul class="contact-list">
+          <li class="p-name">readMe, my specs</li><li><a class="u-email" href="mailto:nogotheorem@gmail.com">nogotheorem@gmail.com</a></li></ul>
+      </div>
+
+      <div class="footer-col footer-col-2"><ul class="social-media-list"><li><a href="https://github.com/quant-ml"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#github"></use></svg> <span class="username">quant-ml</span></a></li><li><a href="https://www.twitter.com/quantumCircuit"><svg class="svg-icon"><use xlink:href="/assets/minima-social-icons.svg#twitter"></use></svg> <span class="username">quantumCircuit</span></a></li></ul>
+</div>
+
+      <div class="footer-col footer-col-3">
+        <p>Description of my skills, experience and projects. Thank you for your interest!</p>
+      </div>
+    </div>
+
+  </div>
+
+</footer>
+</body>
+
+</html>
