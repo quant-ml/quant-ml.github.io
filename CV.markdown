@@ -5,18 +5,15 @@ permalink: /cv/
 ---
 
 # Gleb Kabanov
-36 yo, Moscow
-
-+79645855513
-
-nogotheorem@gmail.com
-
+36 yo, Moscow\
++79645855513\
+nogotheorem@gmail.com\
 https://github.com/quant-ml/
 
-*Profile*: python, optimization modelling, ML
-
+*Profile*: python, ml, optimization modelling
+---
 ## Experience
-
+---
 ### SUEK
 Project Lead, July 2020 - June 2021
 
@@ -46,8 +43,9 @@ Specialist, March 2010 - November 2016
 Forward modelling.
 * Financial and strategic KPI-s models for the subsidiaries.
 
-
+---
 ## Education
+---
 
 ### Deep Leaning University
 Moscow, https://neural-university.ru/
@@ -64,7 +62,7 @@ Moscow, https://neural-university.ru/
 
 *Topics:* linear/logistic regression, binary/muticlass classification, clustering, named entity recognition
 
-*Tools:* xgboost, catboost, catboost, scikit, gensim
+*Tools:* xgboost, catboost, scikit, gensim
 
 **Deploy in Production**
 In progress.
