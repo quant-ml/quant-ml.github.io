@@ -11,9 +11,11 @@ nogotheorem@gmail.com\
 https://github.com/quant-ml/
 
 *Profile*: python, ml, optimization modelling
+
 ---
 ## Experience
 ---
+
 ### SUEK
 Project Lead, July 2020 - June 2021
 
@@ -70,5 +72,5 @@ In progress.
 ### Geekbrains
 1 year mentoring in python, ML basic and intermediate courses.
 
-### Moscow State University of Interntinal Relations 
+### Moscow State University of International Relations 
 Master of Economics, 2002-2008
