@@ -6,7 +6,7 @@ permalink: /cv/
 
 # Gleb Kabanov
 36 yo, Moscow\
-+79645855513\
++79151119975\
 nogotheorem@gmail.com\
 https://github.com/quant-ml/
 
