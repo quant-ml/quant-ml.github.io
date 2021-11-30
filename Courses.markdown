@@ -28,5 +28,5 @@ In progress.
 
 ### Datacamp
 
-* Introduction to Airlfow in Python [statement](https://www.datacamp.com/statement-of-accomplishment/course/483a3b07b90a5af5bcc2b94bfc3f44acb5f86d3f?raw=1)
-* Building Recommendation Engines in Python
+* Introduction to Airlfow in Python [Statement](https://www.datacamp.com/statement-of-accomplishment/course/483a3b07b90a5af5bcc2b94bfc3f44acb5f86d3f?raw=1)
+* Building Recommendation Engines in Python [Statement](https://www.datacamp.com/statement-of-accomplishment/course/519ecd084888c42f3dcbdfd99c2c4b8dd6688fce)
