@@ -18,14 +18,14 @@
 # You can create any custom variable you would like, and they will be accessible
 # in the templates via {{ site.myvariable }}.
 
-title: readMe, my specs
+title: my specifications
 email: nogotheorem@gmail.com
 description: >- # this means to ignore newlines until "baseurl:"
   Description of my skills, experience and projects. Thank you for your interest!
 baseurl: "" # the subpath of your site, e.g. /blog
 url: "" # the base hostname & protocol for your site, e.g. http://example.com
-twitter_username: CircuitQuantum
-github_username:  quant-ml
+twitter_username: quantumTrit
+github_username:  qutrit
 
 # Build settings
 theme: minima
