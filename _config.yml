@@ -28,7 +28,7 @@ twitter_username: quantumTrit
 github_username:  qutrit
 
 # Build settings
-theme: minima
+theme: jekyll-theme-hacker
 plugins:
   - jekyll-feed
 
